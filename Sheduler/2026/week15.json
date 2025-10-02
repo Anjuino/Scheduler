@@ -1,0 +1,81 @@
+{
+  "days": [
+    {
+      "date": "2026-04-06",
+      "day": "Понедельник",
+      "tasks": [
+        {
+          "task": "Работа",
+          "description": "",
+          "color": "white"
+        }
+      ]
+    },
+    {
+      "date": "2026-04-07",
+      "day": "Вторник",
+      "tasks": [
+        {
+          "task": "Работа",
+          "description": "",
+          "color": "white"
+        }
+      ]
+    },
+    {
+      "date": "2026-04-08",
+      "day": "Среда",
+      "tasks": [
+        {
+          "task": "Работа",
+          "description": "",
+          "color": "white"
+        }
+      ]
+    },
+    {
+      "date": "2026-04-09",
+      "day": "Четверг",
+      "tasks": [
+        {
+          "task": "Работа",
+          "description": "",
+          "color": "white"
+        }
+      ]
+    },
+    {
+      "date": "2026-04-10",
+      "day": "Пятница",
+      "tasks": [
+        {
+          "task": "Работа",
+          "description": "",
+          "color": "white"
+        }
+      ]
+    },
+    {
+      "date": "2026-04-11",
+      "day": "Суббота",
+      "tasks": [
+        {
+          "task": "Работа",
+          "description": "",
+          "color": "white"
+        }
+      ]
+    },
+    {
+      "date": "2026-04-12",
+      "day": "Воскресенье",
+      "tasks": [
+        {
+          "task": "Работа",
+          "description": "",
+          "color": "white"
+        }
+      ]
+    }
+  ]
+}
