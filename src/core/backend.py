@@ -1,59 +1,67 @@
+from PySide6 import QtCore
 from PySide6.QtCore import QObject, Slot, Signal
 from datetime import datetime
 import os
+import json
 
-#Поток интерфейса
+
 class Backend(QObject):
-
     def __init__(self, qml_engine):
         super().__init__()
-        self.qml_engine = qml_engine  # Ссылка на QML engine
+        self.qml_engine = qml_engine
 
-    # Вызов функции из qml
     def call_qml_function(self, function_name, *args):
-        if not self.qml_engine.rootObjects(): return
+        if not self.qml_engine.rootObjects():
+            # QML еще не загружен, ждем
+            QtCore.QTimer.singleShot(100, lambda: self.call_qml_function(function_name, *args))
+            return
 
         root_object = self.qml_engine.rootObjects()[0]
-
-        if hasattr(root_object, function_name): getattr(root_object, function_name)(*args)
-
+        if hasattr(root_object, function_name):
+            getattr(root_object, function_name)(*args)
 
     def log_app(self, data):
-        #print(data)
         self.call_qml_function("log_app", data)
 
-
     @Slot(result=list)
-    def get_list_weaks(self):
+    def get_list_weeks(self):
         try:
-            # Определяем путь к папке с текущим годом
-            year_dir = os.path.join("Sheduler", str(datetime.now().year))
-            print("Текущая рабочая директория:", year_dir)
-            # Проверяем существование папки
-            if not os.path.exists(year_dir): return []
-            
-            # Получаем только файлы (исключаем папки)
-            files = [f for f in os.listdir(year_dir) 
-                    if os.path.isfile(os.path.join(year_dir, f))]
-            
-            return sorted(files)  # Возвращаем отсортированный список
-            
+            current_file_dir = os.path.dirname(os.path.abspath(__file__))
+            project_root = os.path.dirname(os.path.dirname(current_file_dir))
+            year_dir = os.path.join(project_root, "Scheduler", str(datetime.now().year))
+
+            files = [f for f in os.listdir(year_dir)
+                     if os.path.isfile(os.path.join(year_dir, f))]
+
+            return sorted(files)
+
         except Exception as e:
             print(f"Ошибка: {e}")
             return []
 
     @Slot(str)
     def read_file(self, file):
-        year_dir = os.path.join("Sheduler", str(datetime.now().year))
-        filename = os.path.join(year_dir, file)
+        try:
+            current_file_dir = os.path.dirname(os.path.abspath(__file__))
+            project_root = os.path.dirname(os.path.dirname(current_file_dir))
+            year_dir = os.path.join(project_root, "Scheduler", str(datetime.now().year))
+            filename = os.path.join(year_dir, file)
 
-        with open(filename, 'r', encoding='utf-8') as f:
-            content = f.read()
-        
-        self.call_qml_function("print_data", content)
+            print(f"Чтение файла: {filename}")
 
-    # Логирование с qml
+            with open(filename, 'r', encoding='utf-8') as f:
+                content = f.read()
+
+            # Валидируем JSON
+            json.loads(content)
+
+            # Передаем данные в QML для отображения
+            self.call_qml_function("update_week_data", content)
+
+        except Exception as e:
+            print(f"Ошибка чтения файла {file}: {e}")
+            self.call_qml_function("print_data", f"Ошибка: {e}")
+
     @Slot(str)
     def log(self, message):
         print(f"Front: {message}")
-

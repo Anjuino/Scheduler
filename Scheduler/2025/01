@@ -5,7 +5,12 @@
       "day": "Понедельник",
       "tasks": [
         {
-          "task": "Работа",
+          "task": "Работа1",
+          "description": "",
+          "color": "white"
+        },
+        {
+          "task": "Работа2",
           "description": "",
           "color": "white"
         }
@@ -16,7 +21,12 @@
       "day": "Вторник",
       "tasks": [
         {
-          "task": "Работа",
+          "task": "Работа3",
+          "description": "",
+          "color": "white"
+        },
+        {
+          "task": "Работа4",
           "description": "",
           "color": "white"
         }

@@ -49,7 +49,7 @@ def generate_files(year: int, folder_path: str):
         }
         
         # Сохраняем в отдельный файл
-        filename = f"week{week_number:02d}.json"
+        filename = f"{week_number:02d}"
         file_path = os.path.join(folder_path, filename)
         
         with open(file_path, 'w', encoding='utf-8') as f:
@@ -63,5 +63,5 @@ def generate_files(year: int, folder_path: str):
     
     print(f"\nСоздано {week_number-1} файлов в папке '{folder_path}'")
 
-generate_files(2025, "Sheduler/2025")
-generate_files(2026, "Sheduler/2026")
+generate_files(2025, "Scheduler/2025")
+generate_files(2026, "Scheduler/2026")
