@@ -32,8 +32,8 @@ ApplicationWindow {
                 var dayItem = daysRepeater.itemAt(i);
 
                 if (dayItem) {
-                    // Обновляем название и дату
-                    //dayItem.dayName = day.day;
+                    // Сохраняем оригинальную дату из JSON для последующего сохранения
+                    dayItem.originalDate = day.date;
                     dayItem.dayDate = Utils.formatDate(day.date);
 
                     // Преобразуем задачи
@@ -42,7 +42,7 @@ ApplicationWindow {
                         var task = day.tasks[j];
                         tasksModel.push({
                             taskText: task.task,
-                            //taskDescription: task.description,
+                            taskDescription: task.description || "",
                             taskColor: task.color || "white"
                         });
                     }
@@ -51,6 +51,40 @@ ApplicationWindow {
             }
         } catch (e) {
             Backend.log("Ошибка парсинга JSON:", e);
+        }
+    }
+
+    // Функция для сохранения данных дня
+    function saveDayData(dayIndex) {
+        try {
+            var dayItem = daysRepeater.itemAt(dayIndex);
+            if (!dayItem) return;
+
+            var currentWeek = comboBox.currentText || Utils.getWeekNumber();
+            if (!currentWeek) return;
+
+            // Собираем данные только для этого дня
+            var dayData = {
+                "date": dayItem.originalDate,
+                "day": dayItem.dayName,
+                "tasks": []
+            };
+
+            // Преобразуем задачи в нужный формат
+            for (var j = 0; j < dayItem.dayTasks.length; j++) {
+                var task = dayItem.dayTasks[j];
+                dayData.tasks.push({
+                    "task": task.taskText || "",
+                    "description": task.taskDescription || "",
+                    "color": task.taskColor || "white"
+                });
+            }
+
+            // Отправляем в бэкенд для сохранения
+            Backend.save_day_data(currentWeek, dayIndex, JSON.stringify(dayData));
+
+        } catch (e) {
+            Backend.log("Ошибка сохранения дня:", e);
         }
     }
 
@@ -152,14 +186,7 @@ ApplicationWindow {
                                         cursorShape: Qt.PointingHandCursor
 
                                         onClicked: function(mouse) {
-                                            if (mouse.button === Qt.LeftButton) {
-                                                // Левый клик - начинаем редактирование
-                                                taskDelegate.isEditing = true
-                                                editTextInput.forceActiveFocus()
-                                                editTextInput.selectAll()
-                                                tasksListView.taskLeftClicked(modelData, index)
-                                            } else if (mouse.button === Qt.RightButton) {
-                                                // Правый клик - открываем модальное окно
+                                            if (mouse.button === Qt.RightButton) {
                                                 tasksListView.taskRightClicked(modelData, index)
                                             }
                                         }
@@ -178,34 +205,6 @@ ApplicationWindow {
                                             font.pixelSize: 14
                                             font.bold: true
                                             elide: Text.ElideRight
-                                        }
-                                    }
-
-                                    // Поле ввода для редактирования (отображается при редактировании)
-                                    TextInput {
-                                        id: editTextInput
-                                        anchors.fill: parent
-                                        anchors.margins: 2
-                                        visible: taskDelegate.isEditing
-                                        text: modelData.taskText || ""
-                                        font.pixelSize: 14
-                                        font.bold: true
-                                        verticalAlignment: TextInput.AlignVCenter
-
-                                        // Завершаем редактирование при нажатии Enter или потере фокуса
-                                        onAccepted: {
-                                            finishEditing()
-                                        }
-
-                                        onActiveFocusChanged: {
-                                            if (!activeFocus && taskDelegate.isEditing) {
-                                                finishEditing()
-                                            }
-                                        }
-
-                                        Keys.onEscapePressed: {
-                                            taskDelegate.isEditing = false
-                                            editTextInput.text = modelData.taskText || ""
                                         }
                                     }
 
@@ -239,9 +238,9 @@ ApplicationWindow {
                                     })
 
                                     taskEditFinished.connect(function(taskData, index, newText) {
-                                        console.log("Текст задачи изменен:", newText)
-                                        // Здесь можно сохранить изменения в базу данных или обновить модель
-                                        // Например: Backend.updateTask(dayContainer.index, index, newText)
+                                        Backend.log("Текст задачи изменен:", newText)
+                                        // Автосохранение при изменении задачи
+                                        saveDayData(dayContainer.index)
                                     })
                                 }
                             }
@@ -274,12 +273,16 @@ ApplicationWindow {
                                     dayTasks = dayTasks.slice() // Создаем новый массив для принудительного обновления
 
                                     // Сразу открываем модальное окно для редактирования
+                                    // Берем задачу из ОБНОВЛЕННОГО массива
                                     taskDetailPopup.currentTaskData = dayTasks[dayTasks.length - 1]
                                     taskDetailPopup.currentTaskIndex = dayTasks.length - 1
                                     taskDetailPopup.currentDayIndex = dayContainer.index
                                     taskDetailPopup.open()
 
-                                    console.log("Добавлена новая задача в день:", dayName)
+                                    Backend.log("Добавлена новая задача в день:", dayName)
+
+                                    // Автосохранение при добавлении задачи
+                                    saveDayData(dayContainer.index)
                                 }
                             }
                         }
@@ -287,6 +290,7 @@ ApplicationWindow {
                         // Свойства для данных дня
                         property string dayName: ["Понедельник", "Вторник", "Среда", "Четверг", "Пятница", "Суббота", "Воскресенье"][index]
                         property string dayDate: ""
+                        property string originalDate: "" // Оригинальная дата из JSON для сохранения
                         property var dayTasks: []
                         property int index: model.index
                     }
@@ -294,6 +298,7 @@ ApplicationWindow {
             }
         }
 
+        // Область с кнопками
         Rectangle {
             id: secondField
             anchors {
@@ -356,7 +361,7 @@ ApplicationWindow {
                             text: "К текущей неделе"
                             font.pixelSize: 13
                             onClicked: {
-                                Backend.read_file(Utils.getWeekNumber())
+                                comboBox.currentIndex = Utils.getWeekNumber()
                             }
                         }
                     }
@@ -402,7 +407,7 @@ ApplicationWindow {
         }
     }
 
-    // Модальное окно для детального просмотра/редактирования (добавлено в корень)
+    // Модальное окно для детального просмотра/редактирования
     Popup {
         id: taskDetailPopup
         width: 400
@@ -429,13 +434,6 @@ ApplicationWindow {
             anchors.margins: 10
             spacing: 10
 
-            Text {
-                text: "Детали задачи"
-                font.bold: true
-                font.pixelSize: 16
-                color: "#333333"
-            }
-
             TextField {
                 id: popupTitleInput
                 width: parent.width
@@ -459,17 +457,23 @@ ApplicationWindow {
                     text: "Сохранить"
                     onClicked: {
                         if (taskDetailPopup.currentTaskData) {
-                            taskDetailPopup.currentTaskData.taskText = popupTitleInput.text
-                            taskDetailPopup.currentTaskData.taskDescription = popupDescInput.text
-
-                            // Полностью перезагружаем модель
+                            // Получаем актуальную ссылку на день и задачу
                             var dayItem = daysRepeater.itemAt(taskDetailPopup.currentDayIndex)
-                            if (dayItem) {
-                                var currentTasks = dayItem.dayTasks
-                                dayItem.dayTasks = []
-                                dayItem.dayTasks = currentTasks
-                            }
+                            if (dayItem && dayItem.dayTasks) {
+                                // Находим актуальную задачу в массиве
+                                var actualTask = dayItem.dayTasks[taskDetailPopup.currentTaskIndex]
+                                if (actualTask) {
+                                    // Обновляем актуальную задачу
+                                    actualTask.taskText = popupTitleInput.text
+                                    actualTask.taskDescription = popupDescInput.text
 
+                                    // Принудительно обновляем модель
+                                    dayItem.dayTasks = dayItem.dayTasks.slice()
+
+                                    // Автосохранение при сохранении изменений
+                                    saveDayData(taskDetailPopup.currentDayIndex)
+                                }
+                            }
                             taskDetailPopup.close()
                         }
                     }
@@ -483,6 +487,9 @@ ApplicationWindow {
                             if (dayItem && dayItem.dayTasks) {
                                 dayItem.dayTasks.splice(taskDetailPopup.currentTaskIndex, 1)
                                 dayItem.dayTasks = dayItem.dayTasks.slice() // Принудительно обновляем модель
+
+                                // Автосохранение при удалении задачи
+                                saveDayData(taskDetailPopup.currentDayIndex)
                             }
                             taskDetailPopup.close()
                         }

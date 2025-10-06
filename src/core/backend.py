@@ -62,6 +62,34 @@ class Backend(QObject):
             print(f"Ошибка чтения файла {file}: {e}")
             self.call_qml_function("print_data", f"Ошибка: {e}")
 
+    @Slot(str, int, str)
+    def save_day_data(self, week_number, day_index, day_json):
+        try:
+            current_file_dir = os.path.dirname(os.path.abspath(__file__))
+            project_root = os.path.dirname(os.path.dirname(current_file_dir))
+            year_dir = os.path.join(project_root, "Scheduler", str(datetime.now().year))
+
+            filename = os.path.join(year_dir, week_number)
+
+            print(f"Обновление дня {day_index} в файле: {filename}")
+
+            # Читаем текущий файл
+            with open(filename, 'r', encoding='utf-8') as f:
+                week_data = json.load(f)
+
+            # Обновляем только нужный день
+            new_day_data = json.loads(day_json)
+            week_data["days"][day_index] = new_day_data
+
+            # Сохраняем обратно
+            with open(filename, 'w', encoding='utf-8') as f:
+                json.dump(week_data, f, ensure_ascii=False, indent=2)
+
+            print(f"День {day_index} успешно обновлен")
+
+        except Exception as e:
+            print(f"Ошибка сохранения дня {day_index}: {e}")
+
     @Slot(str)
     def log(self, message):
         print(f"Front: {message}")
