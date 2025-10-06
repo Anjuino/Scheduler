@@ -12,6 +12,104 @@ ApplicationWindow {
     height: 768
     title: "Scheduler"
 
+    // Функция для отображения результата копирования
+    function show_copy_result(message) {
+        notificationText.text = message
+        if (message.includes("Ошибка")) {
+            notification.color = "#ffcccc"
+            notification.border.color = "#ff6666"
+        } else {
+            notification.color = "#ccffcc"
+            notification.border.color = "#66cc66"
+        }
+
+        showAnimation.start()
+        notificationTimer.start()
+    }
+
+    // Простое уведомление как Rectangle
+    Rectangle {
+        id: notification
+        width: 400
+        height: 60
+        x: (parent.width - width) / 2
+        y: 30  // Чуть выше для лучшей видимости
+        color: "#ccffcc"
+        radius: 8
+        border.color: "#66cc66"
+        border.width: 2
+        visible: false
+        z: 9999
+
+        // Начальные значения для анимации
+        opacity: 0
+        scale: 0.8
+        transformOrigin: Item.Center
+
+        Text {
+            id: notificationText
+            anchors.centerIn: parent
+            text: ""
+            color: "#333333"
+            font.pixelSize: 14
+            font.bold: true
+        }
+
+        Timer {
+            id: notificationTimer
+            interval: 2000
+            onTriggered: hideAnimation.start()
+        }
+
+        // Анимация появления
+        SequentialAnimation {
+            id: showAnimation
+            onStarted: notification.visible = true
+            ParallelAnimation {
+                NumberAnimation {
+                    target: notification
+                    property: "opacity"
+                    from: 0
+                    to: 1
+                    duration: 300
+                    easing.type: Easing.OutCubic
+                }
+                NumberAnimation {
+                    target: notification
+                    property: "scale"
+                    from: 0.8
+                    to: 1
+                    duration: 400
+                    easing.type: Easing.OutBack
+                }
+            }
+        }
+
+        // Анимация исчезновения
+        SequentialAnimation {
+            id: hideAnimation
+            ParallelAnimation {
+                NumberAnimation {
+                    target: notification
+                    property: "opacity"
+                    from: 1
+                    to: 0
+                    duration: 300
+                    easing.type: Easing.InCubic
+                }
+                NumberAnimation {
+                    target: notification
+                    property: "scale"
+                    from: 1
+                    to: 0.8
+                    duration: 300
+                    easing.type: Easing.InCubic
+                }
+            }
+            onFinished: notification.visible = false
+        }
+    }
+
     Component.onCompleted: {
         ApplicationWindow.style = "Fusion"
     }
@@ -120,6 +218,13 @@ ApplicationWindow {
                         border.width: 1
                         border.color: "#cccccc"
 
+                        property bool isToday: {
+                            if (!originalDate) return false;
+                            var today = new Date();
+                            var todayString = today.toISOString().split('T')[0];
+                            return originalDate === todayString;
+                        }
+
                         Column {
                             anchors.fill: parent
                             spacing: 2
@@ -129,7 +234,7 @@ ApplicationWindow {
                                 id: dayHeader
                                 width: parent.width
                                 height: 30
-                                color: "#4a86e8"
+                                color: dayContainer.isToday ? "#27ae60" : "#4a86e8"  // Зеленый если сегодня, синий если нет
 
                                 RowLayout {
                                     anchors.fill: parent
@@ -279,9 +384,8 @@ ApplicationWindow {
                                     taskDetailPopup.currentDayIndex = dayContainer.index
                                     taskDetailPopup.open()
 
-                                    Backend.log("Добавлена новая задача в день:", dayName)
+                                    //Backend.log("Добавлена новая задача в день:", dayName)
 
-                                    // Автосохранение при добавлении задачи
                                     saveDayData(dayContainer.index)
                                 }
                             }
@@ -290,7 +394,7 @@ ApplicationWindow {
                         // Свойства для данных дня
                         property string dayName: ["Понедельник", "Вторник", "Среда", "Четверг", "Пятница", "Суббота", "Воскресенье"][index]
                         property string dayDate: ""
-                        property string originalDate: "" // Оригинальная дата из JSON для сохранения
+                        property string originalDate: ""
                         property var dayTasks: []
                         property int index: model.index
                     }
@@ -346,7 +450,12 @@ ApplicationWindow {
                                 Layout.preferredHeight: 40
                                 text: "➕"
                                 font.pixelSize: 20
-                                onClicked: console.log("Add button clicked")
+                                onClicked: {
+                                    var currentWeek = comboBox.currentText || Utils.getWeekNumber()
+                                    if (currentWeek) {
+                                        Backend.copy_to_next_week(currentWeek)
+                                    }
+                                }
                             }
 
                             Item {
@@ -409,9 +518,11 @@ ApplicationWindow {
 
     // Модальное окно для детального просмотра/редактирования
     Popup {
+        property string selectedColor: "white"
+
         id: taskDetailPopup
-        width: 400
-        height: 300
+        width: 450
+        height: 350
         x: (parent.width - width) / 2
         y: (parent.height - height) / 2
         modal: true
@@ -431,8 +542,15 @@ ApplicationWindow {
 
         contentItem: Column {
             anchors.fill: parent
-            anchors.margins: 10
-            spacing: 10
+            anchors.margins: 15
+            spacing: 15
+
+            Text {
+                text: "Редактирование задачи"
+                font.bold: true
+                font.pixelSize: 16
+                color: "#333333"
+            }
 
             TextField {
                 id: popupTitleInput
@@ -444,10 +562,62 @@ ApplicationWindow {
             TextArea {
                 id: popupDescInput
                 width: parent.width
-                height: 150
+                height: 120
                 placeholderText: "Описание задачи"
                 wrapMode: TextArea.Wrap
                 font.pixelSize: 12
+            }
+
+            // Выбор цвета
+            Column {
+                width: parent.width
+                spacing: 5
+
+                Text {
+                    text: "Цвет задачи:"
+                    font.pixelSize: 14
+                    color: "#333333"
+                }
+
+                Flow {
+                    width: parent.width
+                    spacing: 5
+
+                    Repeater {
+                        model: [
+                            { name: "Белый", color: "white" },
+                            { name: "Красный", color: "#ffcccc" },
+                            { name: "Зеленый", color: "#ccffcc" },
+                            { name: "Синий", color: "#cce5ff" },
+                            { name: "Желтый", color: "#ffffcc" },
+                            { name: "Оранжевый", color: "#ffe6cc" },
+                            { name: "Фиолетовый", color: "#e6ccff" },
+                            { name: "Розовый", color: "#ffccf2" }
+                        ]
+
+                        Rectangle {
+                            width: 30
+                            height: 30
+                            radius: 15
+                            color: modelData.color
+                            border.width: taskDetailPopup.selectedColor === modelData.color ? 3 : 1
+                            border.color: taskDetailPopup.selectedColor === modelData.color ? "#4a86e8" : "#cccccc"
+
+                            MouseArea {
+                                anchors.fill: parent
+                                onClicked: {
+                                    if (taskDetailPopup.currentTaskData) {
+                                        taskDetailPopup.currentTaskData.taskColor = modelData.color
+                                        taskDetailPopup.selectedColor = modelData.color
+                                    }
+                                }
+                            }
+
+                            ToolTip.visible: containsMouse
+                            ToolTip.text: modelData.name
+                        }
+                    }
+                }
             }
 
             Row {
@@ -466,6 +636,7 @@ ApplicationWindow {
                                     // Обновляем актуальную задачу
                                     actualTask.taskText = popupTitleInput.text
                                     actualTask.taskDescription = popupDescInput.text
+                                    actualTask.taskColor = taskDetailPopup.currentTaskData.taskColor
 
                                     // Принудительно обновляем модель
                                     dayItem.dayTasks = dayItem.dayTasks.slice()
@@ -502,6 +673,7 @@ ApplicationWindow {
             if (currentTaskData) {
                 popupTitleInput.text = currentTaskData.taskText || ""
                 popupDescInput.text = currentTaskData.taskDescription || ""
+                selectedColor = currentTaskData.taskColor || "white"
                 popupTitleInput.forceActiveFocus()
             }
         }

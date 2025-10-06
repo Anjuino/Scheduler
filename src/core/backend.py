@@ -23,6 +23,48 @@ class Backend(QObject):
     def log_app(self, data):
         self.call_qml_function("log_app", data)
 
+    @Slot(str)
+    def copy_to_next_week(self, current_week):
+        try:
+            current_file_dir = os.path.dirname(os.path.abspath(__file__))
+            project_root = os.path.dirname(os.path.dirname(current_file_dir))
+            year_dir = os.path.join(project_root, "Scheduler", str(datetime.now().year))
+
+            # Вычисляем следующую неделю
+            next_week = str(int(current_week) + 1)
+            if int(next_week) > 53:
+                next_week = "1"
+
+            source_file = os.path.join(year_dir, current_week)
+            target_file = os.path.join(year_dir, next_week)
+
+            print(f"Копирование задач из недели {current_week} → {next_week}")
+
+            # Читаем текущую неделю (откуда берем задачи)
+            with open(source_file, 'r', encoding='utf-8') as f:
+                source_data = json.load(f)
+
+            # Читаем следующую неделю (куда копируем задачи)
+            with open(target_file, 'r', encoding='utf-8') as f:
+                target_data = json.load(f)
+
+            # Копируем задачи из каждого дня текущей недели в следующую неделю
+            for i in range(7):
+                target_data["days"][i]["tasks"] = source_data["days"][i]["tasks"].copy()
+
+            # Сохраняем следующую неделю с новыми задачами
+            with open(target_file, 'w', encoding='utf-8') as f:
+                json.dump(target_data, f, ensure_ascii=False, indent=2)
+
+            # Отправляем успех в QML
+            self.call_qml_function("show_copy_result", f"Задачи успешно перенесены на следующую неделю")
+
+        except Exception as e:
+            error_msg = f"Ошибка копирования: {str(e)}"
+            print(error_msg)
+            # Отправляем ошибку в QML
+            self.call_qml_function("show_copy_result", error_msg)
+
     @Slot(result=list)
     def get_list_weeks(self):
         try:
