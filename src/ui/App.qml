@@ -197,9 +197,7 @@ ApplicationWindow {
                 top: parent.top
                 bottom: parent.bottom
             }
-            width: parent.width * 0.9
-            color: "#e6f3ff"
-            border.width: 1
+            width: parent.width * 0.90
 
             Row {
                 id: daysRow
@@ -214,9 +212,9 @@ ApplicationWindow {
                         id: dayContainer
                         width: (firstField.width - 6) / 7
                         height: parent.height
-                        color: "#ffffff"
+                        color: "#f8ffd0"
                         border.width: 1
-                        border.color: "#cccccc"
+                        border.color: "#818181"
 
                         property bool isToday: {
                             if (!originalDate) return false;
@@ -265,7 +263,7 @@ ApplicationWindow {
                                 width: parent.width
                                 height: parent.height - dayHeader.height - addButton.height - 8
                                 model: dayTasks
-                                spacing: 2
+                                spacing: 4
                                 clip: true
 
                                 // Сигналы для внешней обработки
@@ -278,9 +276,10 @@ ApplicationWindow {
                                     width: tasksListView.width - 4
                                     height: 40
                                     color: modelData.taskColor || "white"
-                                    border.width: 1
+                                    border.width: 2
                                     border.color: "#dddddd"
-                                    radius: 3
+                                    radius: 5
+                                    anchors.horizontalCenter: parent.horizontalCenter
 
                                     property bool isEditing: false
                                     property int taskIndex: index
@@ -353,17 +352,11 @@ ApplicationWindow {
                             // Кнопка добавления новой задачи
                             Button {
                                 id: addButton
-                                width: parent.width
-                                height: 30
+                                width: parent.width - 2
+                                height: 25
                                 text: "+ Добавить задачу"
-                                font.pixelSize: 12
-
-                                background: Rectangle {
-                                    color: parent.down ? "#e0e0e0" : "#f5f5f5"
-                                    border.color: "#cccccc"
-                                    border.width: 1
-                                    radius: 3
-                                }
+                                font.pixelSize: 11
+                                anchors.horizontalCenter: parent.horizontalCenter
 
                                 onClicked: {
                                     // Создаем новую задачу
