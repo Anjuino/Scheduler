@@ -57,7 +57,7 @@ ApplicationWindow {
 
         Timer {
             id: notificationTimer
-            interval: 2000
+            interval: 3000
             onTriggered: hideAnimation.start()
         }
 
@@ -188,7 +188,7 @@ ApplicationWindow {
 
     Rectangle {
         anchors.fill: parent
-        anchors.margins: root.width * 0.01
+        anchors.margins: root.width * 0.001
 
         Rectangle {
             id: firstField
@@ -197,7 +197,7 @@ ApplicationWindow {
                 top: parent.top
                 bottom: parent.bottom
             }
-            width: parent.width * 0.90
+            width: parent.width * 0.97
 
             Row {
                 id: daysRow
@@ -212,9 +212,9 @@ ApplicationWindow {
                         id: dayContainer
                         width: (firstField.width - 6) / 7
                         height: parent.height
-                        color: "#f8ffd0"
+                        color: "white"
                         border.width: 1
-                        border.color: "#818181"
+                        border.color: "#595959"
 
                         property bool isToday: {
                             if (!originalDate) return false;
@@ -240,7 +240,7 @@ ApplicationWindow {
 
                                     Text {
                                         text: dayName
-                                        font.pixelSize: 14
+                                        font.pixelSize: 15
                                         font.bold: true
                                         color: "white"
                                         Layout.alignment: Qt.AlignVCenter
@@ -250,7 +250,7 @@ ApplicationWindow {
 
                                     Text {
                                         text: dayDate
-                                        font.pixelSize: 14
+                                        font.pixelSize: 15
                                         color: "white"
                                         Layout.alignment: Qt.AlignVCenter
                                     }
@@ -273,12 +273,12 @@ ApplicationWindow {
 
                                 delegate: Rectangle {
                                     id: taskDelegate
-                                    width: tasksListView.width - 4
+                                    width: tasksListView.width - 7
                                     height: 40
                                     color: modelData.taskColor || "white"
-                                    border.width: 2
-                                    border.color: "#dddddd"
-                                    radius: 5
+                                    border.width: 1
+                                    border.color: "#000000"
+                                    radius: 8
                                     anchors.horizontalCenter: parent.horizontalCenter
 
                                     property bool isEditing: false
@@ -305,10 +305,13 @@ ApplicationWindow {
 
                                         Text {
                                             width: parent.width
+                                            height: parent.height  // если нужно вертикальное выравнивание
                                             text: modelData.taskText || "Без названия"
                                             font.pixelSize: 14
                                             font.bold: true
                                             elide: Text.ElideRight
+                                            horizontalAlignment: Text.AlignHCenter  // по горизонтали
+                                            verticalAlignment: Text.AlignVCenter    // по вертикали
                                         }
                                     }
 
@@ -404,107 +407,128 @@ ApplicationWindow {
                 right: parent.right
                 leftMargin: 1
             }
-            height: parent.height * 0.2
-            color: "#fff0e6"
-            border.width: 1
+            height: parent.height * 1
 
             ColumnLayout {
                 anchors.fill: parent
-                spacing: 0
+                anchors.margins: 5
 
-                Rectangle {
-                    id: buttonPanel
-                    Layout.fillWidth: true
-                    Layout.preferredHeight: 90
-                    color: "#f5f5f5"
-                    border.width: 1
-                    border.color: "#dddddd"
+                Item { Layout.fillHeight: true } // Верхний спейсер
 
-                    ColumnLayout {
-                        anchors.fill: parent
-                        anchors.margins: 5
-                        spacing: 5
-
-                        // Верхняя строка с кнопками настроек
-                        RowLayout {
-                            Layout.fillWidth: true
-                            Layout.preferredHeight: 40
-
-                            Button {
-                                Layout.preferredWidth: 40
-                                Layout.preferredHeight: 40
-                                text: "⚙️"
-                                font.pixelSize: 20
-                                onClicked: console.log("Settings button clicked")
-                            }
-
-                            Button {
-                                Layout.preferredWidth: 40
-                                Layout.preferredHeight: 40
-                                text: "➕"
-                                font.pixelSize: 20
-                                onClicked: {
-                                    var currentWeek = comboBox.currentText || Utils.getWeekNumber()
-                                    if (currentWeek) {
-                                        Backend.copy_to_next_week(currentWeek)
-                                    }
-                                }
-                            }
-
-                            Item {
-                                Layout.fillWidth: true
-                            }
-                        }
-
-                        // Нижняя строка с большой кнопкой
-                        Button {
-                            Layout.fillWidth: true
-                            Layout.preferredHeight: 20
-                            text: "К текущей неделе"
-                            font.pixelSize: 13
-                            onClicked: {
-                                comboBox.currentIndex = Utils.getWeekNumber()
-                            }
+                // Навигация
+                Button {
+                    Layout.preferredWidth: 30
+                    Layout.preferredHeight: 30
+                    Layout.alignment: Qt.AlignHCenter
+                    text: "🡰️"
+                    font.pixelSize: 16
+                    ToolTip.text: "Предыдущая неделя"
+                    ToolTip.visible: hovered
+                    onClicked: {
+                        if (comboBox.count > 0) {
+                            var currentIndex = comboBox.currentIndex
+                            var newIndex = currentIndex > 0 ? currentIndex - 1 : comboBox.count - 1
+                            comboBox.currentIndex = newIndex
                         }
                     }
                 }
 
-                Rectangle {
-                    Layout.fillWidth: true
-                    Layout.preferredHeight: 1
-                    color: "#cccccc"
+                Item { Layout.preferredHeight: 3 } // Отступ
+
+                Button {
+                    Layout.preferredWidth: 30
+                    Layout.preferredHeight: 30
+                    Layout.alignment: Qt.AlignHCenter
+                    text: "📍"
+                    font.pixelSize: 16
+                    ToolTip.text: "Перейти к текущей неделе"
+                    ToolTip.visible: hovered
+                    onClicked: {
+                        comboBox.currentIndex = Utils.getWeekNumber()
+                    }
                 }
 
+                Item { Layout.preferredHeight: 3 } // Отступ
 
-                Rectangle {
-                    Layout.fillWidth: true
-                    Layout.fillHeight: true
-
-                    ColumnLayout {
-                        anchors.fill: parent
-                        anchors.margins: 10
-
-                        ComboBox {
-                            id: comboBox
-                            Layout.fillWidth: true
-                            model: Backend.get_list_weeks()
-                            currentIndex: -1
-
-                            Component.onCompleted: {
-                                enabled = count > 0
-                                if (count > 0) {
-                                    currentIndex = Utils.getWeekNumber()
-                                }
-                            }
-
-                            onCurrentTextChanged: {
-                                if (currentText) {
-                                    Backend.read_file(currentText)
-                                }
-                            }
+                Button {
+                    Layout.preferredWidth: 30
+                    Layout.preferredHeight: 30
+                    Layout.alignment: Qt.AlignHCenter
+                    text: "🡲️"
+                    font.pixelSize: 16
+                    ToolTip.text: "Следующая неделя"
+                    ToolTip.visible: hovered
+                    onClicked: {
+                        if (comboBox.count > 0) {
+                            var currentIndex = comboBox.currentIndex
+                            var newIndex = currentIndex < comboBox.count - 1 ? currentIndex + 1 : 0
+                            comboBox.currentIndex = newIndex
                         }
                     }
                 }
+
+                Item { Layout.preferredHeight: 3 } // Отступ
+
+                // Кнопка копирования
+                Button {
+                    Layout.preferredWidth: 30
+                    Layout.preferredHeight: 30
+                    Layout.alignment: Qt.AlignHCenter
+                    text: "📋"
+                    font.pixelSize: 16
+                    ToolTip.text: "Перенести текущую неделю на следующую"
+                    ToolTip.visible: hovered
+                    onClicked: {
+                        var currentWeek = comboBox.currentText || Utils.getWeekNumber()
+                        if (currentWeek) {
+                            Backend.copy_to_next_week(currentWeek)
+                        }
+                    }
+                }
+
+                Item { Layout.preferredHeight: 3 } // Отступ
+
+                // Выбор недели
+                ComboBox {
+                    id: comboBox
+                    Layout.preferredWidth: 30
+                    Layout.preferredHeight: 30
+                    Layout.alignment: Qt.AlignHCenter
+                    model: Backend.get_list_weeks()
+                    currentIndex: -1
+
+                    ToolTip.text: "Выберите неделю для просмотра"
+                    ToolTip.visible: hovered
+
+                    Component.onCompleted: {
+                        enabled = count > 0
+                        if (count > 0) {
+                            currentIndex = Utils.getWeekNumber()
+                        }
+                    }
+
+                    onCurrentTextChanged: {
+                        if (currentText) {
+                            Backend.read_file(currentText)
+                        }
+                    }
+                }
+
+                Item { Layout.preferredHeight: 3 } // Отступ
+
+                // Кнопка настроек
+                Button {
+                    Layout.preferredWidth: 30
+                    Layout.preferredHeight: 30
+                    Layout.alignment: Qt.AlignHCenter
+                    text: "⚙️"
+                    font.pixelSize: 16
+                    ToolTip.text: "Настройки"
+                    ToolTip.visible: hovered
+                    onClicked: console.log("Settings button clicked")
+                }
+
+                Item { Layout.fillHeight: true } // Нижний спейсер
             }
         }
     }

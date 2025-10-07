@@ -113,7 +113,7 @@ class Backend(QObject):
 
             filename = os.path.join(year_dir, week_number)
 
-            print(f"Обновление дня {day_index} в файле: {filename}")
+            print(f"Обновление дня {day_index + 1} в файле: {filename}")
 
             # Читаем текущий файл
             with open(filename, 'r', encoding='utf-8') as f:
@@ -127,7 +127,7 @@ class Backend(QObject):
             with open(filename, 'w', encoding='utf-8') as f:
                 json.dump(week_data, f, ensure_ascii=False, indent=2)
 
-            print(f"День {day_index} успешно обновлен")
+            print(f"День {day_index + 1} успешно обновлен")
 
         except Exception as e:
             print(f"Ошибка сохранения дня {day_index}: {e}")
