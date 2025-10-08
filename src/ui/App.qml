@@ -264,9 +264,15 @@ ApplicationWindow {
 
                         property bool isToday: {
                             if (!originalDate) return false;
+
                             var today = new Date();
-                            var todayString = today.toISOString().split('T')[0];
-                            return originalDate === todayString;
+                            // Форматируем вручную в YYYY-MM-DD
+                            var year = today.getFullYear();
+                            var month = String(today.getMonth() + 1).padStart(2, '0');
+                            var day = String(today.getDate()).padStart(2, '0');
+                            var localDateString = year + '-' + month + '-' + day;
+
+                            return originalDate === localDateString;
                         }
 
                         Column {
