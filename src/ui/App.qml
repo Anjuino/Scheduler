@@ -19,18 +19,18 @@ ApplicationWindow {
         property int dayIndex: -1
         interval: 10
         onTriggered: {
-            Backend.log("🕒 Таймер сработал, выполняем присваивание")
+            //Backend.log("выполняем присваивание")
             if (dayItem && newTasks) {
                 try {
                     dayItem.dayTasks = newTasks
-                    Backend.log("🎉 МОДЕЛЬ ОБНОВЛЕНА!")
+                    //Backend.log("МОДЕЛЬ ОБНОВЛЕНА!")
 
                     // Сохраняем изменения
-                    Backend.log("💾 Сохранение данных...")
+                    //Backend.log("Сохранение данных...")
                     saveDayData(dayIndex)
-                    Backend.log("💾 Данные сохранены!")
+                    //Backend.log("Данные сохранены!")
                 } catch (e) {
-                    Backend.log("❌ Ошибка в таймере:", e)
+                    //Backend.log("Ошибка в таймере:", e)
                 }
             }
         }
@@ -180,7 +180,7 @@ ApplicationWindow {
 
     // Функция для сохранения данных дня
     function saveDayData(dayIndex) {
-        Backend.log("Попытка сохранения")
+        //Backend.log("Попытка сохранения")
         try {
             var dayItem = daysRepeater.itemAt(dayIndex);
             if (!dayItem) return;
@@ -380,128 +380,128 @@ ApplicationWindow {
                                         property bool isDragging: false
                                         property bool isLastElementBlocked: false
 
-                                    onPressed: {
-                                        if (tasksListView.count <= 1) {
-                                            Backend.log("🚫 Всего 1 элемент - перетаскивание заблокировано")
-                                            return
-                                        }
-
-                                        Backend.log("🐭 ЛЕВАЯ кнопка onPressed")
-                                        taskDelegate.z = 1
-                                        startIndex = index
-                                        isDragging = true
-                                        taskDelegate.originalY = taskDelegate.y
-
-                                        // ВОССТАНАВЛИВАЕМ drag.target если он был отключен
-                                        if (!drag.target) {
-                                            drag.target = taskDelegate
-                                        }
-                                    }
-
-                                    onPositionChanged: {
-                                        if (tasksListView.count <= 1) return
-
-                                        if (isDragging) {
-                                            // ФИКС: Если элемент последний и его тянут ВНИЗ - постоянно возвращаем на место
-                                            if (startIndex === tasksListView.count - 1) {
-                                                var originalY = startIndex * (taskDelegate.height + tasksListView.spacing) - tasksListView.contentY
-                                                if (taskDelegate.y > originalY) {
-                                                    // Постоянно возвращаем на место, создавая эффект сопротивления
-                                                    taskDelegate.y = originalY
-                                                    return
-                                                }
+                                        onPressed: {
+                                            if (tasksListView.count <= 1) {
+                                                //Backend.log("перетаскивание заблокировано")
+                                                return
                                             }
 
-                                            var newVisualIndex = Math.round((taskDelegate.y + tasksListView.contentY) / (taskDelegate.height + tasksListView.spacing))
-                                            newVisualIndex = Math.max(0, Math.min(dayTasks.length - 1, newVisualIndex))
+                                            //Backend.log("ЛЕВАЯ кнопка onPressed")
+                                            taskDelegate.z = 1
+                                            startIndex = index
+                                            isDragging = true
+                                            taskDelegate.originalY = taskDelegate.y
 
-                                            if (newVisualIndex !== taskDelegate.visualIndex) {
-                                                taskDelegate.visualIndex = newVisualIndex
+                                            // ВОССТАНАВЛИВАЕМ drag.target если он был отключен
+                                            if (!drag.target) {
+                                                drag.target = taskDelegate
+                                            }
+                                        }
 
-                                                for (var i = 0; i < tasksListView.count; i++) {
-                                                    var otherDelegate = tasksListView.itemAt(i)
-                                                    if (otherDelegate && otherDelegate !== taskDelegate) {
-                                                        if (taskDelegate.visualIndex > startIndex) {
-                                                            if (i > startIndex && i <= taskDelegate.visualIndex) {
-                                                                otherDelegate.y = - (taskDelegate.height + tasksListView.spacing)
+                                        onPositionChanged: {
+                                            if (tasksListView.count <= 1) return
+
+                                            if (isDragging) {
+                                                // ФИКС: Если элемент последний и его тянут ВНИЗ - постоянно возвращаем на место
+                                                if (startIndex === tasksListView.count - 1) {
+                                                    var originalY = startIndex * (taskDelegate.height + tasksListView.spacing) - tasksListView.contentY
+                                                    if (taskDelegate.y > originalY) {
+                                                        // Постоянно возвращаем на место, создавая эффект сопротивления
+                                                        taskDelegate.y = originalY
+                                                        return
+                                                    }
+                                                }
+
+                                                var newVisualIndex = Math.round((taskDelegate.y + tasksListView.contentY) / (taskDelegate.height + tasksListView.spacing))
+                                                newVisualIndex = Math.max(0, Math.min(dayTasks.length - 1, newVisualIndex))
+
+                                                if (newVisualIndex !== taskDelegate.visualIndex) {
+                                                    taskDelegate.visualIndex = newVisualIndex
+
+                                                    for (var i = 0; i < tasksListView.count; i++) {
+                                                        var otherDelegate = tasksListView.itemAt(i)
+                                                        if (otherDelegate && otherDelegate !== taskDelegate) {
+                                                            if (taskDelegate.visualIndex > startIndex) {
+                                                                if (i > startIndex && i <= taskDelegate.visualIndex) {
+                                                                    otherDelegate.y = - (taskDelegate.height + tasksListView.spacing)
+                                                                } else {
+                                                                    otherDelegate.y = 0
+                                                                }
                                                             } else {
-                                                                otherDelegate.y = 0
-                                                            }
-                                                        } else {
-                                                            if (i >= taskDelegate.visualIndex && i < startIndex) {
-                                                                otherDelegate.y = taskDelegate.height + tasksListView.spacing
-                                                            } else {
-                                                                otherDelegate.y = 0
+                                                                if (i >= taskDelegate.visualIndex && i < startIndex) {
+                                                                    otherDelegate.y = taskDelegate.height + tasksListView.spacing
+                                                                } else {
+                                                                    otherDelegate.y = 0
+                                                                }
                                                             }
                                                         }
                                                     }
                                                 }
                                             }
                                         }
+
+                                        onReleased: {
+                                            if (tasksListView.count <= 1) return
+
+                                            //Backend.log("ЛЕВАЯ кнопка onReleased")
+                                            taskDelegate.z = 0
+                                            isDragging = false
+                                            isLastElementBlocked = false
+
+                                            if (taskDelegate.visualIndex !== startIndex) {
+                                                //Backend.log("Позиция изменилась, обновляем модель")
+
+                                                var dayItem = dayContainer
+                                                if (dayItem && dayItem.dayTasks) {
+                                                    var originalTasks = dayItem.dayTasks
+                                                    var newTasks = []
+
+                                                    for (var i = 0; i < originalTasks.length; i++) {
+                                                        if (i === startIndex) continue
+
+                                                        if (i === taskDelegate.visualIndex) {
+                                                            if (taskDelegate.visualIndex < startIndex) {
+                                                                newTasks.push({
+                                                                    taskText: originalTasks[startIndex].taskText,
+                                                                    taskDescription: originalTasks[startIndex].taskDescription,
+                                                                    taskColor: originalTasks[startIndex].taskColor
+                                                                })
+                                                                newTasks.push({
+                                                                    taskText: originalTasks[i].taskText,
+                                                                    taskDescription: originalTasks[i].taskDescription,
+                                                                    taskColor: originalTasks[i].taskColor
+                                                                })
+                                                            } else {
+                                                                newTasks.push({
+                                                                    taskText: originalTasks[i].taskText,
+                                                                    taskDescription: originalTasks[i].taskDescription,
+                                                                    taskColor: originalTasks[i].taskColor
+                                                                })
+                                                                newTasks.push({
+                                                                    taskText: originalTasks[startIndex].taskText,
+                                                                    taskDescription: originalTasks[startIndex].taskDescription,
+                                                                    taskColor: originalTasks[startIndex].taskColor
+                                                                })
+                                                            }
+                                                        } else {
+                                                            newTasks.push({
+                                                                taskText: originalTasks[i].taskText,
+                                                                taskDescription: originalTasks[i].taskDescription,
+                                                                taskColor: originalTasks[i].taskColor
+                                                            })
+                                                        }
+                                                    }
+
+                                                    assignmentTimer.newTasks = newTasks
+                                                    assignmentTimer.dayItem = dayItem
+                                                    assignmentTimer.dayIndex = dayContainer.index
+                                                    assignmentTimer.start()
+                                                }
+                                            }
+
+                                            resetDelegatesPosition.start()
+                                        }
                                     }
-
-    onReleased: {
-        if (tasksListView.count <= 1) return
-
-        Backend.log("🐭 ЛЕВАЯ кнопка onReleased")
-        taskDelegate.z = 0
-        isDragging = false
-        isLastElementBlocked = false
-
-        if (taskDelegate.visualIndex !== startIndex) {
-            Backend.log("🔄 Позиция изменилась, обновляем модель")
-
-            var dayItem = dayContainer
-            if (dayItem && dayItem.dayTasks) {
-                var originalTasks = dayItem.dayTasks
-                var newTasks = []
-
-                for (var i = 0; i < originalTasks.length; i++) {
-                    if (i === startIndex) continue
-
-                    if (i === taskDelegate.visualIndex) {
-                        if (taskDelegate.visualIndex < startIndex) {
-                            newTasks.push({
-                                taskText: originalTasks[startIndex].taskText,
-                                taskDescription: originalTasks[startIndex].taskDescription,
-                                taskColor: originalTasks[startIndex].taskColor
-                            })
-                            newTasks.push({
-                                taskText: originalTasks[i].taskText,
-                                taskDescription: originalTasks[i].taskDescription,
-                                taskColor: originalTasks[i].taskColor
-                            })
-                        } else {
-                            newTasks.push({
-                                taskText: originalTasks[i].taskText,
-                                taskDescription: originalTasks[i].taskDescription,
-                                taskColor: originalTasks[i].taskColor
-                            })
-                            newTasks.push({
-                                taskText: originalTasks[startIndex].taskText,
-                                taskDescription: originalTasks[startIndex].taskDescription,
-                                taskColor: originalTasks[startIndex].taskColor
-                            })
-                        }
-                    } else {
-                        newTasks.push({
-                            taskText: originalTasks[i].taskText,
-                            taskDescription: originalTasks[i].taskDescription,
-                            taskColor: originalTasks[i].taskColor
-                        })
-                    }
-                }
-
-                assignmentTimer.newTasks = newTasks
-                assignmentTimer.dayItem = dayItem
-                assignmentTimer.dayIndex = dayContainer.index
-                assignmentTimer.start()
-            }
-        }
-
-        resetDelegatesPosition.start()
-    }
-}
 
                                     // MouseArea для ПРАВОЙ кнопки (меню)
                                     MouseArea {
@@ -510,7 +510,7 @@ ApplicationWindow {
                                         cursorShape: Qt.PointingHandCursor
 
                                         onClicked: {
-                                            Backend.log("🐭 ПРАВАЯ кнопка clicked")
+                                            //Backend.log("ПРАВАЯ кнопка clicked")
                                             tasksListView.taskRightClicked(modelData, index)
                                         }
                                     }
@@ -552,6 +552,7 @@ ApplicationWindow {
                                             }
                                         }
                                     }
+
                                 }
 
                                 // Подключение обработчиков сигналов
