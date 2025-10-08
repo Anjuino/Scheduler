@@ -574,6 +574,12 @@ ApplicationWindow {
                 width: parent.width
                 placeholderText: "Название задачи"
                 font.pixelSize: 14
+
+                background: Rectangle {
+                    border.color: "#cccccc"
+                    border.width: 2  // вот здесь работает
+                    color: "transparent"
+                }
             }
 
             TextArea {
@@ -583,6 +589,12 @@ ApplicationWindow {
                 placeholderText: "Описание задачи"
                 wrapMode: TextArea.Wrap
                 font.pixelSize: 12
+
+                background: Rectangle {
+                    border.color: "#cccccc"
+                    border.width: 1
+                    color: "transparent"
+                }
             }
 
             // Выбор цвета

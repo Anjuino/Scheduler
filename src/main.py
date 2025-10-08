@@ -15,19 +15,33 @@ def main():
 
     engine = QQmlApplicationEngine()
 
-    # Читаем текущий файл
-    with open("User_profile", 'r', encoding='utf-8') as f:
-        data = json.load(f)
-        user_id = data["user_id"]
-        print(user_id)
+    try:
+        # Читаем текущий файл
+        with open("User_profile", 'r', encoding='utf-8') as f:
+            data = json.load(f)
+            user_id = data["user_id"]
+            isglobal = data["isGlobal"]
 
-    backend = Backend(engine, user_id)
-    engine.rootContext().setContextProperty("Backend", backend)
+        backend = Backend(engine, user_id, isglobal)
+        engine.rootContext().setContextProperty("Backend", backend)
 
-    qml_path = Path(__file__).parent / "ui" / "App.qml"
-    engine.load(QUrl.fromLocalFile(str(qml_path)))
+        qml_path = Path(__file__).parent / "ui" / "App.qml"
+        engine.load(QUrl.fromLocalFile(str(qml_path)))
 
-    sys.exit(app.exec())
+        sys.exit(app.exec())
+
+    except FileNotFoundError:
+        print("ОШИБКА: Файл User_profile не найден!")
+        sys.exit(1)
+    except KeyError as e:
+        print(f"ОШИБКА: В файле User_profile отсутствует ключ: {e}")
+        sys.exit(1)
+    except json.JSONDecodeError:
+        print("ОШИБКА: Файл User_profile поврежден!")
+        sys.exit(1)
+    except Exception as e:
+        print(f"ОШИБКА: {e}")
+        sys.exit(1)
 
 if __name__ == "__main__":
     main()
