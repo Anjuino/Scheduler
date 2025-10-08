@@ -12,6 +12,33 @@ ApplicationWindow {
     height: 768
     title: "Scheduler"
 
+    Timer {
+        id: assignmentTimer
+        property var newTasks: null
+        property var dayItem: null
+        property int dayIndex: -1
+        interval: 10
+        onTriggered: {
+            Backend.log("🕒 Таймер сработал, выполняем присваивание")
+            if (dayItem && newTasks) {
+                try {
+                    dayItem.dayTasks = newTasks
+                    Backend.log("🎉 МОДЕЛЬ ОБНОВЛЕНА!")
+
+                    // Сохраняем изменения
+                    Backend.log("💾 Сохранение данных...")
+                    saveDayData(dayIndex)
+                    Backend.log("💾 Данные сохранены!")
+                } catch (e) {
+                    Backend.log("❌ Ошибка в таймере:", e)
+                }
+            }
+        }
+    }
+
+    // Глобальная переменная для отслеживания перетаскивания
+    property var draggedTask: null
+
     // Функция для отображения результата копирования
     function show_copy_result(message) {
         notificationText.text = message
@@ -110,10 +137,6 @@ ApplicationWindow {
         }
     }
 
-    Component.onCompleted: {
-        ApplicationWindow.style = "Fusion"
-    }
-
     // Новая функция для обновления данных недели
     function update_week_data(jsonContent) {
         updateDaysData(jsonContent)
@@ -145,6 +168,9 @@ ApplicationWindow {
                         });
                     }
                     dayItem.dayTasks = tasksModel;
+
+                    // Инициализируем счетчик после загрузки задач
+                    dayItem.lessonsCount = dayItem.countLessons();
                 }
             }
         } catch (e) {
@@ -154,6 +180,7 @@ ApplicationWindow {
 
     // Функция для сохранения данных дня
     function saveDayData(dayIndex) {
+        Backend.log("Попытка сохранения")
         try {
             var dayItem = daysRepeater.itemAt(dayIndex);
             if (!dayItem) return;
@@ -216,6 +243,25 @@ ApplicationWindow {
                         border.width: 1
                         border.color: "#595959"
 
+                        property int lessonsCount: 0
+
+                        // Функция для подсчета задач определенных цветов
+                        function countLessons() {
+                            var count = 0;
+                            for (var i = 0; i < dayTasks.length; i++) {
+                                var task = dayTasks[i];
+                                if (task.taskColor === "#ffffff" || task.taskColor === "#ffcccc") {
+                                    count++;
+                                }
+                            }
+                            return count;
+                        }
+
+                        // Обновляем счетчик при изменении задач
+                        onDayTasksChanged: {
+                            lessonsCount = countLessons();
+                        }
+
                         property bool isToday: {
                             if (!originalDate) return false;
                             var today = new Date();
@@ -231,28 +277,58 @@ ApplicationWindow {
                             Rectangle {
                                 id: dayHeader
                                 width: parent.width
-                                height: 30
-                                color: dayContainer.isToday ? "#27ae60" : "#4a86e8"  // Зеленый если сегодня, синий если нет
+                                height: 50  // Увеличиваем высоту для двух строк
+                                color: dayContainer.isToday ? "#27ae60" : "#4a86e8"
 
-                                RowLayout {
+                                ColumnLayout {
                                     anchors.fill: parent
                                     anchors.margins: 5
 
-                                    Text {
-                                        text: dayName
-                                        font.pixelSize: 15
-                                        font.bold: true
-                                        color: "white"
-                                        Layout.alignment: Qt.AlignVCenter
+                                    // Первая строка: день и дата
+                                    RowLayout {
+                                        Layout.fillWidth: true
+                                        Layout.preferredHeight: 20
+
+                                        Text {
+                                            text: dayName
+                                            font.pixelSize: 15
+                                            font.bold: true
+                                            color: "white"
+                                            Layout.alignment: Qt.AlignVCenter
+                                        }
+
+                                        Item { Layout.fillWidth: true } // Пустое пространство
+
+                                        Text {
+                                            text: dayDate
+                                            font.pixelSize: 15
+                                            color: "white"
+                                            Layout.alignment: Qt.AlignVCenter
+                                        }
                                     }
 
-                                    Item { Layout.fillWidth: true } // Пустое пространство между элементами
+                                    // Вторая строка: счетчик уроков (выровнен слева)
+                                    RowLayout {
+                                        Layout.fillWidth: true
+                                        Layout.preferredHeight: 20
 
-                                    Text {
-                                        text: dayDate
-                                        font.pixelSize: 15
-                                        color: "white"
-                                        Layout.alignment: Qt.AlignVCenter
+                                        Rectangle {
+                                            Layout.alignment: Qt.AlignLeft
+                                            width: 60
+                                            height: 15
+                                            color: "white"
+                                            radius: 9
+
+                                            Text {
+                                                anchors.centerIn: parent
+                                                text: "Уроков: " + dayContainer.lessonsCount
+                                                font.pixelSize: 11
+                                                font.bold: true
+                                                color: "#333333"
+                                            }
+                                        }
+
+                                        Item { Layout.fillWidth: true } // Пустое пространство справа
                                     }
                                 }
                             }
@@ -263,7 +339,7 @@ ApplicationWindow {
                                 width: parent.width
                                 height: parent.height - dayHeader.height - addButton.height - 8
                                 model: dayTasks
-                                spacing: 4
+                                spacing: 10
                                 clip: true
 
                                 // Сигналы для внешней обработки
@@ -284,15 +360,158 @@ ApplicationWindow {
                                     property bool isEditing: false
                                     property int taskIndex: index
 
+                                    // Свойства для перетаскивания
+                                    property bool isDragging: false
+                                    property int dragSourceIndex: index
+                                    property int visualIndex: index
+
+                                    // MouseArea для ЛЕВОЙ кнопки (перетаскивание)
+                                    MouseArea {
+                                        id: leftMouseArea
+                                        anchors.fill: parent
+                                        acceptedButtons: Qt.LeftButton
+                                        cursorShape: tasksListView.count > 1 ? Qt.PointingHandCursor : Qt.ArrowCursor
+                                        drag.target: tasksListView.count > 1 ? taskDelegate : null
+                                        drag.axis: Drag.YAxis
+                                        drag.minimumY: 0
+                                        drag.maximumY: tasksListView.height - taskDelegate.height
+
+                                        property int startIndex: index
+                                        property bool isDragging: false
+                                        property bool isLastElementBlocked: false
+
+                                    onPressed: {
+                                        if (tasksListView.count <= 1) {
+                                            Backend.log("🚫 Всего 1 элемент - перетаскивание заблокировано")
+                                            return
+                                        }
+
+                                        Backend.log("🐭 ЛЕВАЯ кнопка onPressed")
+                                        taskDelegate.z = 1
+                                        startIndex = index
+                                        isDragging = true
+                                        taskDelegate.originalY = taskDelegate.y
+
+                                        // ВОССТАНАВЛИВАЕМ drag.target если он был отключен
+                                        if (!drag.target) {
+                                            drag.target = taskDelegate
+                                        }
+                                    }
+
+                                    onPositionChanged: {
+                                        if (tasksListView.count <= 1) return
+
+                                        if (isDragging) {
+                                            // ФИКС: Если элемент последний и его тянут ВНИЗ - постоянно возвращаем на место
+                                            if (startIndex === tasksListView.count - 1) {
+                                                var originalY = startIndex * (taskDelegate.height + tasksListView.spacing) - tasksListView.contentY
+                                                if (taskDelegate.y > originalY) {
+                                                    // Постоянно возвращаем на место, создавая эффект сопротивления
+                                                    taskDelegate.y = originalY
+                                                    return
+                                                }
+                                            }
+
+                                            var newVisualIndex = Math.round((taskDelegate.y + tasksListView.contentY) / (taskDelegate.height + tasksListView.spacing))
+                                            newVisualIndex = Math.max(0, Math.min(dayTasks.length - 1, newVisualIndex))
+
+                                            if (newVisualIndex !== taskDelegate.visualIndex) {
+                                                taskDelegate.visualIndex = newVisualIndex
+
+                                                for (var i = 0; i < tasksListView.count; i++) {
+                                                    var otherDelegate = tasksListView.itemAt(i)
+                                                    if (otherDelegate && otherDelegate !== taskDelegate) {
+                                                        if (taskDelegate.visualIndex > startIndex) {
+                                                            if (i > startIndex && i <= taskDelegate.visualIndex) {
+                                                                otherDelegate.y = - (taskDelegate.height + tasksListView.spacing)
+                                                            } else {
+                                                                otherDelegate.y = 0
+                                                            }
+                                                        } else {
+                                                            if (i >= taskDelegate.visualIndex && i < startIndex) {
+                                                                otherDelegate.y = taskDelegate.height + tasksListView.spacing
+                                                            } else {
+                                                                otherDelegate.y = 0
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+
+    onReleased: {
+        if (tasksListView.count <= 1) return
+
+        Backend.log("🐭 ЛЕВАЯ кнопка onReleased")
+        taskDelegate.z = 0
+        isDragging = false
+        isLastElementBlocked = false
+
+        if (taskDelegate.visualIndex !== startIndex) {
+            Backend.log("🔄 Позиция изменилась, обновляем модель")
+
+            var dayItem = dayContainer
+            if (dayItem && dayItem.dayTasks) {
+                var originalTasks = dayItem.dayTasks
+                var newTasks = []
+
+                for (var i = 0; i < originalTasks.length; i++) {
+                    if (i === startIndex) continue
+
+                    if (i === taskDelegate.visualIndex) {
+                        if (taskDelegate.visualIndex < startIndex) {
+                            newTasks.push({
+                                taskText: originalTasks[startIndex].taskText,
+                                taskDescription: originalTasks[startIndex].taskDescription,
+                                taskColor: originalTasks[startIndex].taskColor
+                            })
+                            newTasks.push({
+                                taskText: originalTasks[i].taskText,
+                                taskDescription: originalTasks[i].taskDescription,
+                                taskColor: originalTasks[i].taskColor
+                            })
+                        } else {
+                            newTasks.push({
+                                taskText: originalTasks[i].taskText,
+                                taskDescription: originalTasks[i].taskDescription,
+                                taskColor: originalTasks[i].taskColor
+                            })
+                            newTasks.push({
+                                taskText: originalTasks[startIndex].taskText,
+                                taskDescription: originalTasks[startIndex].taskDescription,
+                                taskColor: originalTasks[startIndex].taskColor
+                            })
+                        }
+                    } else {
+                        newTasks.push({
+                            taskText: originalTasks[i].taskText,
+                            taskDescription: originalTasks[i].taskDescription,
+                            taskColor: originalTasks[i].taskColor
+                        })
+                    }
+                }
+
+                assignmentTimer.newTasks = newTasks
+                assignmentTimer.dayItem = dayItem
+                assignmentTimer.dayIndex = dayContainer.index
+                assignmentTimer.start()
+            }
+        }
+
+        resetDelegatesPosition.start()
+    }
+}
+
+                                    // MouseArea для ПРАВОЙ кнопки (меню)
                                     MouseArea {
                                         anchors.fill: parent
-                                        acceptedButtons: Qt.LeftButton | Qt.RightButton
+                                        acceptedButtons: Qt.RightButton
                                         cursorShape: Qt.PointingHandCursor
 
-                                        onClicked: function(mouse) {
-                                            if (mouse.button === Qt.RightButton) {
-                                                tasksListView.taskRightClicked(modelData, index)
-                                            }
+                                        onClicked: {
+                                            Backend.log("🐭 ПРАВАЯ кнопка clicked")
+                                            tasksListView.taskRightClicked(modelData, index)
                                         }
                                     }
 
@@ -306,7 +525,7 @@ ApplicationWindow {
                                         Text {
                                             width: parent.width
                                             height: parent.height  // если нужно вертикальное выравнивание
-                                            text: modelData.taskText || "Без названия"
+                                            text: modelData.taskText
                                             font.pixelSize: 14
                                             font.bold: true
                                             elide: Text.ElideRight
@@ -364,7 +583,7 @@ ApplicationWindow {
                                 onClicked: {
                                     // Создаем новую задачу
                                     var newTask = {
-                                        taskText: "Новая задача",
+                                        taskText: "",
                                         taskDescription: "",
                                         taskColor: "white"
                                     }
@@ -550,6 +769,22 @@ ApplicationWindow {
         property int currentTaskIndex: -1
         property int currentDayIndex: -1
 
+        Keys.onReturnPressed: {
+            if (event.modifiers & Qt.ControlModifier) {
+                // Ctrl+Enter работает из TextArea
+                return
+            }
+            saveButton.clicked()
+        }
+
+        Keys.onEnterPressed: {
+            if (event.modifiers & Qt.ControlModifier) {
+                // Ctrl+Enter работает из TextArea
+                return
+            }
+            saveButton.clicked()
+        }
+
         background: Rectangle {
             color: "white"
             border.color: "#cccccc"
@@ -577,8 +812,16 @@ ApplicationWindow {
 
                 background: Rectangle {
                     border.color: "#cccccc"
-                    border.width: 2  // вот здесь работает
+                    border.width: 2
                     color: "transparent"
+                }
+
+                // Обработка клавиши Enter
+                Keys.onReturnPressed: {
+                    saveButton.clicked()
+                }
+                Keys.onEnterPressed: {
+                    saveButton.clicked()
                 }
             }
 
@@ -594,7 +837,19 @@ ApplicationWindow {
                     border.color: "#cccccc"
                     border.width: 2
                     color: "transparent"
-                    radius: 4 // если нужны скругленные углы
+                    radius: 4
+                }
+
+                // Обработка клавиши Enter с Ctrl
+                Keys.onReturnPressed: {
+                    if (event.modifiers & Qt.ControlModifier) {
+                        saveButton.clicked()
+                    }
+                }
+                Keys.onEnterPressed: {
+                    if (event.modifiers & Qt.ControlModifier) {
+                        saveButton.clicked()
+                    }
                 }
             }
 
@@ -615,14 +870,15 @@ ApplicationWindow {
 
                     Repeater {
                         model: [
-                            { name: "Белый", color: "white" },
-                            { name: "Красный", color: "#ffcccc" },
-                            { name: "Зеленый", color: "#ccffcc" },
+                            { name: "Белый", color: "#ffffff" },    // Уроки
+                            { name: "Красный", color: "#ffcccc" },  // Перенесенный урок
+                            { name: "Серый", color: "#a8a8a8" },    // Отмена
+                            { name: "Зеленый", color: "#ccffcc" },  // Дела
                             { name: "Синий", color: "#cce5ff" },
                             { name: "Желтый", color: "#ffffcc" },
                             { name: "Оранжевый", color: "#ffe6cc" },
                             { name: "Фиолетовый", color: "#e6ccff" },
-                            { name: "Розовый", color: "#ffccf2" }
+                            { name: "Розовый", color: "#ffccf2" },
                         ]
 
                         Rectangle {
@@ -654,6 +910,7 @@ ApplicationWindow {
                 spacing: 10
 
                 Button {
+                    id: saveButton  // Добавляем id
                     text: "Сохранить"
                     onClicked: {
                         if (taskDetailPopup.currentTaskData) {
