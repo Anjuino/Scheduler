@@ -1,13 +1,16 @@
 from PySide6 import QtCore
-from PySide6.QtCore import QObject, Slot, Signal
+from PySide6.QtCore import QObject, Slot
+from .FileUpload import FileUploadThread
 from datetime import datetime
 import os
 import json
 
 
 class Backend(QObject):
-    def __init__(self, qml_engine):
+    def __init__(self, qml_engine, user_id):
         super().__init__()
+        self.user_id = user_id
+        self.upload_thread = None
         self.qml_engine = qml_engine
 
     def call_qml_function(self, function_name, *args):
@@ -55,6 +58,12 @@ class Backend(QObject):
             # Сохраняем следующую неделю с новыми задачами
             with open(target_file, 'w', encoding='utf-8') as f:
                 json.dump(target_data, f, ensure_ascii=False, indent=2)
+
+            # ОТПРАВКА НА СЕРВЕР В ОТДЕЛЬНОМ ПОТОКЕ
+            self.upload_thread = FileUploadThread(self.user_id, target_file, str(datetime.now().year))
+            self.upload_thread.finished.connect(lambda msg: print(f"Upload: {msg}"))
+            self.upload_thread.error.connect(lambda msg: print(f"Upload error: {msg}"))
+            self.upload_thread.start()
 
             # Отправляем успех в QML
             self.call_qml_function("show_copy_result", f"Задачи успешно перенесены на следующую неделю")
@@ -128,6 +137,12 @@ class Backend(QObject):
                 json.dump(week_data, f, ensure_ascii=False, indent=2)
 
             print(f"День {day_index + 1} успешно обновлен")
+
+            # ОТПРАВКА НА СЕРВЕР В ОТДЕЛЬНОМ ПОТОКЕ
+            self.upload_thread = FileUploadThread(self.user_id, filename, str(datetime.now().year))
+            self.upload_thread.finished.connect(lambda msg: print(f"Upload: {msg}"))
+            self.upload_thread.error.connect(lambda msg: print(f"Upload error: {msg}"))
+            self.upload_thread.start()
 
         except Exception as e:
             print(f"Ошибка сохранения дня {day_index}: {e}")

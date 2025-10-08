@@ -517,7 +517,7 @@ ApplicationWindow {
                 Item { Layout.preferredHeight: 3 } // Отступ
 
                 // Кнопка настроек
-                Button {
+                /*Button {
                     Layout.preferredWidth: 30
                     Layout.preferredHeight: 30
                     Layout.alignment: Qt.AlignHCenter
@@ -526,7 +526,7 @@ ApplicationWindow {
                     ToolTip.text: "Настройки"
                     ToolTip.visible: hovered
                     onClicked: console.log("Settings button clicked")
-                }
+                }*/
 
                 Item { Layout.fillHeight: true } // Нижний спейсер
             }
