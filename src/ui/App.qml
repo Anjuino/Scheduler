@@ -592,8 +592,9 @@ ApplicationWindow {
 
                 background: Rectangle {
                     border.color: "#cccccc"
-                    border.width: 1
+                    border.width: 2
                     color: "transparent"
+                    radius: 4 // если нужны скругленные углы
                 }
             }
 
