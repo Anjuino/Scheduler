@@ -6,8 +6,11 @@ from PySide6.QtCore import QUrl
 from PySide6.QtGui import QIcon
 from core.backend import Backend
 import json
+import os
 
 def main():
+    print("Файлы в директории:", os.listdir('.'))
+    print("Текущая директория:", os.getcwd())
     app = QApplication(sys.argv)
 
     icon_path = Path(__file__).parent / "ui" / "images" / "icon.svg"
@@ -17,7 +20,9 @@ def main():
 
     try:
         # Читаем текущий файл
-        with open("User_profile", 'r', encoding='utf-8') as f:
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        user_profile_path = os.path.join(current_dir, 'User_profile')
+        with open(user_profile_path, 'r', encoding='utf-8') as f:
             data = json.load(f)
             user_id = data["user_id"]
             isglobal = data["isGlobal"]
