@@ -164,7 +164,7 @@ ApplicationWindow {
                         tasksModel.push({
                             taskText: task.task,
                             taskDescription: task.description || "",
-                            taskColor: task.color || "white"
+                            taskColor: task.color || "#ffffff"
                         });
                     }
                     dayItem.dayTasks = tasksModel;
@@ -201,7 +201,7 @@ ApplicationWindow {
                 dayData.tasks.push({
                     "task": task.taskText || "",
                     "description": task.taskDescription || "",
-                    "color": task.taskColor || "white"
+                    "color": task.taskColor || "#ffffff"
                 });
             }
 
@@ -250,7 +250,7 @@ ApplicationWindow {
                             var count = 0;
                             for (var i = 0; i < dayTasks.length; i++) {
                                 var task = dayTasks[i];
-                                if (task.taskColor === "#ffffff" || task.taskColor === "#ffcccc") {
+                                if (task.taskColor === "#ffffff" || task.taskColor === "white" || task.taskColor === "#ffcccc") {
                                     count++;
                                 }
                             }
@@ -357,7 +357,7 @@ ApplicationWindow {
                                     id: taskDelegate
                                     width: tasksListView.width - 7
                                     height: 40
-                                    color: modelData.taskColor || "white"
+                                    color: modelData.taskColor || "#ffffff"
                                     border.width: 1
                                     border.color: "#000000"
                                     radius: 8
@@ -592,7 +592,7 @@ ApplicationWindow {
                                     var newTask = {
                                         taskText: "",
                                         taskDescription: "",
-                                        taskColor: "white"
+                                        taskColor: "#ffffff"
                                     }
 
                                     // Добавляем в модель
@@ -761,7 +761,7 @@ ApplicationWindow {
 
     // Модальное окно для детального просмотра/редактирования
     Popup {
-        property string selectedColor: "white"
+        property string selectedColor: "#ffffff"
 
         id: taskDetailPopup
         width: 450
@@ -930,7 +930,7 @@ ApplicationWindow {
                                     // Обновляем актуальную задачу
                                     actualTask.taskText = popupTitleInput.text
                                     actualTask.taskDescription = popupDescInput.text
-                                    actualTask.taskColor = taskDetailPopup.currentTaskData.taskColor
+                                    actualTask.taskColor = taskDetailPopup.currentTaskData.taskColor || "#ffffff"
 
                                     // Принудительно обновляем модель
                                     dayItem.dayTasks = dayItem.dayTasks.slice()
@@ -967,7 +967,7 @@ ApplicationWindow {
             if (currentTaskData) {
                 popupTitleInput.text = currentTaskData.taskText || ""
                 popupDescInput.text = currentTaskData.taskDescription || ""
-                selectedColor = currentTaskData.taskColor || "white"
+                selectedColor = currentTaskData.taskColor || "#ffffff"
                 popupTitleInput.forceActiveFocus()
             }
         }
