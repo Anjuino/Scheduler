@@ -250,8 +250,10 @@ ApplicationWindow {
                             var count = 0;
                             for (var i = 0; i < dayTasks.length; i++) {
                                 var task = dayTasks[i];
-                                if (task.taskColor === "#ffffff" || task.taskColor === "white" || task.taskColor === "#ffcccc") {
-                                    count++;
+                                if (task.taskText) {
+                                    if (task.taskColor === "#ffffff" || task.taskColor === "white" || task.taskColor === "#ffcccc") {
+                                        count++;
+                                    }
                                 }
                             }
                             return count;
