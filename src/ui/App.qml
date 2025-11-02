@@ -19,27 +19,32 @@ ApplicationWindow {
         property int dayIndex: -1
         interval: 10
         onTriggered: {
-            //Backend.log("выполняем присваивание")
             if (dayItem && newTasks) {
                 try {
                     dayItem.dayTasks = newTasks
-                    //Backend.log("МОДЕЛЬ ОБНОВЛЕНА!")
-
-                    // Сохраняем изменения
-                    //Backend.log("Сохранение данных...")
                     saveDayData(dayIndex)
-                    //Backend.log("Данные сохранены!")
                 } catch (e) {
-                    //Backend.log("Ошибка в таймере:", e)
+                    console.log("Ошибка в таймере:", e)
                 }
             }
         }
     }
 
-    // Глобальная переменная для отслеживания перетаскивания
+    Timer {
+        id: resetDelegatesPosition
+        interval: 10
+        onTriggered: {
+            for (var i = 0; i < tasksListView.count; i++) {
+                var delegate = tasksListView.itemAt(i)
+                if (delegate) {
+                    delegate.y = 0
+                }
+            }
+        }
+    }
+
     property var draggedTask: null
 
-    // Функция для отображения результата копирования
     function show_copy_result(message) {
         notificationText.text = message
         if (message.includes("Ошибка")) {
@@ -54,21 +59,83 @@ ApplicationWindow {
         notificationTimer.start()
     }
 
-    // Простое уведомление как Rectangle
+    function update_week_data(jsonContent) {
+        updateDaysData(jsonContent)
+    }
+
+    function updateDaysData(jsonData) {
+        try {
+            var daysData = JSON.parse(jsonData);
+            var days = daysData.days;
+
+            for (var i = 0; i < 7; i++) {
+                var day = days[i];
+                var dayItem = daysRepeater.itemAt(i);
+
+                if (dayItem) {
+                    dayItem.originalDate = day.date;
+                    dayItem.dayDate = Utils.formatDate(day.date);
+
+                    var tasksModel = [];
+                    for (var j = 0; j < day.tasks.length; j++) {
+                        var task = day.tasks[j];
+                        tasksModel.push({
+                            taskText: task.task,
+                            taskDescription: task.description || "",
+                            taskColor: task.color || "#ffffff"
+                        });
+                    }
+                    dayItem.dayTasks = tasksModel;
+                    dayItem.lessonsCount = dayItem.countLessons();
+                }
+            }
+        } catch (e) {
+            console.log("Ошибка парсинга JSON:", e);
+        }
+    }
+
+    function saveDayData(dayIndex) {
+        try {
+            var dayItem = daysRepeater.itemAt(dayIndex);
+            if (!dayItem) return;
+
+            var currentWeek = comboBox.currentText || Utils.getWeekNumber();
+            if (!currentWeek) return;
+
+            var dayData = {
+                "date": dayItem.originalDate,
+                "day": dayItem.dayName,
+                "tasks": []
+            };
+
+            for (var j = 0; j < dayItem.dayTasks.length; j++) {
+                var task = dayItem.dayTasks[j];
+                dayData.tasks.push({
+                    "task": task.taskText || "",
+                    "description": task.taskDescription || "",
+                    "color": task.taskColor || "#ffffff"
+                });
+            }
+
+            Backend.save_day_data(currentWeek, dayIndex, JSON.stringify(dayData));
+
+        } catch (e) {
+            console.log("Ошибка сохранения дня:", e);
+        }
+    }
+
     Rectangle {
         id: notification
         width: 400
         height: 60
         x: (parent.width - width) / 2
-        y: 30  // Чуть выше для лучшей видимости
+        y: 30
         color: "#ccffcc"
         radius: 8
         border.color: "#66cc66"
         border.width: 2
         visible: false
         z: 9999
-
-        // Начальные значения для анимации
         opacity: 0
         scale: 0.8
         transformOrigin: Item.Center
@@ -88,7 +155,6 @@ ApplicationWindow {
             onTriggered: hideAnimation.start()
         }
 
-        // Анимация появления
         SequentialAnimation {
             id: showAnimation
             onStarted: notification.visible = true
@@ -112,7 +178,6 @@ ApplicationWindow {
             }
         }
 
-        // Анимация исчезновения
         SequentialAnimation {
             id: hideAnimation
             ParallelAnimation {
@@ -134,82 +199,6 @@ ApplicationWindow {
                 }
             }
             onFinished: notification.visible = false
-        }
-    }
-
-    // Новая функция для обновления данных недели
-    function update_week_data(jsonContent) {
-        updateDaysData(jsonContent)
-    }
-
-    // Функция для обновления данных дней
-    function updateDaysData(jsonData) {
-        try {
-            var daysData = JSON.parse(jsonData);
-            var days = daysData.days;
-
-            for (var i = 0; i < 7; i++) {
-                var day = days[i];
-                var dayItem = daysRepeater.itemAt(i);
-
-                if (dayItem) {
-                    // Сохраняем оригинальную дату из JSON для последующего сохранения
-                    dayItem.originalDate = day.date;
-                    dayItem.dayDate = Utils.formatDate(day.date);
-
-                    // Преобразуем задачи
-                    var tasksModel = [];
-                    for (var j = 0; j < day.tasks.length; j++) {
-                        var task = day.tasks[j];
-                        tasksModel.push({
-                            taskText: task.task,
-                            taskDescription: task.description || "",
-                            taskColor: task.color || "#ffffff"
-                        });
-                    }
-                    dayItem.dayTasks = tasksModel;
-
-                    // Инициализируем счетчик после загрузки задач
-                    dayItem.lessonsCount = dayItem.countLessons();
-                }
-            }
-        } catch (e) {
-            Backend.log("Ошибка парсинга JSON:", e);
-        }
-    }
-
-    // Функция для сохранения данных дня
-    function saveDayData(dayIndex) {
-        //Backend.log("Попытка сохранения")
-        try {
-            var dayItem = daysRepeater.itemAt(dayIndex);
-            if (!dayItem) return;
-
-            var currentWeek = comboBox.currentText || Utils.getWeekNumber();
-            if (!currentWeek) return;
-
-            // Собираем данные только для этого дня
-            var dayData = {
-                "date": dayItem.originalDate,
-                "day": dayItem.dayName,
-                "tasks": []
-            };
-
-            // Преобразуем задачи в нужный формат
-            for (var j = 0; j < dayItem.dayTasks.length; j++) {
-                var task = dayItem.dayTasks[j];
-                dayData.tasks.push({
-                    "task": task.taskText || "",
-                    "description": task.taskDescription || "",
-                    "color": task.taskColor || "#ffffff"
-                });
-            }
-
-            // Отправляем в бэкенд для сохранения
-            Backend.save_day_data(currentWeek, dayIndex, JSON.stringify(dayData));
-
-        } catch (e) {
-            Backend.log("Ошибка сохранения дня:", e);
         }
     }
 
@@ -245,7 +234,6 @@ ApplicationWindow {
 
                         property int lessonsCount: 0
 
-                        // Функция для подсчета задач определенных цветов
                         function countLessons() {
                             var count = 0;
                             for (var i = 0; i < dayTasks.length; i++) {
@@ -259,7 +247,6 @@ ApplicationWindow {
                             return count;
                         }
 
-                        // Обновляем счетчик при изменении задач
                         onDayTasksChanged: {
                             lessonsCount = countLessons();
                         }
@@ -268,7 +255,6 @@ ApplicationWindow {
                             if (!originalDate) return false;
 
                             var today = new Date();
-                            // Форматируем вручную в YYYY-MM-DD
                             var year = today.getFullYear();
                             var month = String(today.getMonth() + 1).padStart(2, '0');
                             var day = String(today.getDate()).padStart(2, '0');
@@ -281,18 +267,16 @@ ApplicationWindow {
                             anchors.fill: parent
                             spacing: 2
 
-                            // Заголовок дня
                             Rectangle {
                                 id: dayHeader
                                 width: parent.width
-                                height: 50  // Увеличиваем высоту для двух строк
+                                height: 50
                                 color: dayContainer.isToday ? "#27ae60" : "#4a86e8"
 
                                 ColumnLayout {
                                     anchors.fill: parent
                                     anchors.margins: 5
 
-                                    // Первая строка: день и дата
                                     RowLayout {
                                         Layout.fillWidth: true
                                         Layout.preferredHeight: 20
@@ -305,7 +289,7 @@ ApplicationWindow {
                                             Layout.alignment: Qt.AlignVCenter
                                         }
 
-                                        Item { Layout.fillWidth: true } // Пустое пространство
+                                        Item { Layout.fillWidth: true }
 
                                         Text {
                                             text: dayDate
@@ -315,7 +299,6 @@ ApplicationWindow {
                                         }
                                     }
 
-                                    // Вторая строка: счетчик уроков (выровнен слева)
                                     RowLayout {
                                         Layout.fillWidth: true
                                         Layout.preferredHeight: 20
@@ -336,12 +319,11 @@ ApplicationWindow {
                                             }
                                         }
 
-                                        Item { Layout.fillWidth: true } // Пустое пространство справа
+                                        Item { Layout.fillWidth: true }
                                     }
                                 }
                             }
 
-                            // Область для задач
                             ListView {
                                 id: tasksListView
                                 width: parent.width
@@ -350,7 +332,6 @@ ApplicationWindow {
                                 spacing: 10
                                 clip: true
 
-                                // Сигналы для внешней обработки
                                 signal taskLeftClicked(var taskData, int index)
                                 signal taskRightClicked(var taskData, int index)
                                 signal taskEditFinished(var taskData, int index, string newText)
@@ -358,7 +339,7 @@ ApplicationWindow {
                                 delegate: Rectangle {
                                     id: taskDelegate
                                     width: tasksListView.width - 7
-                                    height: 40
+                                    height: 60
                                     color: modelData.taskColor || "#ffffff"
                                     border.width: 1
                                     border.color: "#000000"
@@ -367,54 +348,69 @@ ApplicationWindow {
 
                                     property bool isEditing: false
                                     property int taskIndex: index
-
-                                    // Свойства для перетаскивания
                                     property bool isDragging: false
                                     property int dragSourceIndex: index
                                     property int visualIndex: index
 
-                                    // MouseArea для ЛЕВОЙ кнопки (перетаскивание)
+                                    // Текст с переносом и обрезкой
+                                    Text {
+                                        id: textItem
+                                        width: parent.width - 20
+                                        anchors.centerIn: parent
+                                        text: modelData.taskText
+                                        font.pixelSize: 14
+                                        font.bold: true
+                                        wrapMode: Text.Wrap
+                                        elide: Text.ElideRight
+                                        maximumLineCount: 3
+                                        horizontalAlignment: Text.AlignHCenter
+                                        verticalAlignment: Text.AlignVCenter
+                                    }
+
+                                    // ОДИН MouseArea для ВСЕХ кнопок
                                     MouseArea {
-                                        id: leftMouseArea
+                                        id: mouseArea
                                         anchors.fill: parent
-                                        acceptedButtons: Qt.LeftButton
+                                        acceptedButtons: Qt.LeftButton | Qt.RightButton
                                         cursorShape: tasksListView.count > 1 ? Qt.PointingHandCursor : Qt.ArrowCursor
                                         drag.target: tasksListView.count > 1 ? taskDelegate : null
                                         drag.axis: Drag.YAxis
                                         drag.minimumY: 0
                                         drag.maximumY: tasksListView.height - taskDelegate.height
+                                        hoverEnabled: true
+
+                                        // ТУЛТИП ДЛЯ ОПИСАНИЯ
+                                        ToolTip.text: modelData.taskDescription || ""
+                                        ToolTip.visible: containsMouse && modelData.taskDescription
 
                                         property int startIndex: index
                                         property bool isDragging: false
                                         property bool isLastElementBlocked: false
 
-                                        onPressed: {
-                                            if (tasksListView.count <= 1) {
-                                                //Backend.log("перетаскивание заблокировано")
-                                                return
-                                            }
+                                        onPressed: (mouse) => {
+                                            if (mouse.button === Qt.LeftButton) {
+                                                if (tasksListView.count <= 1) {
+                                                    return
+                                                }
 
-                                            //Backend.log("ЛЕВАЯ кнопка onPressed")
-                                            taskDelegate.z = 1
-                                            startIndex = index
-                                            isDragging = true
-                                            taskDelegate.originalY = taskDelegate.y
+                                                taskDelegate.z = 1
+                                                startIndex = index
+                                                isDragging = true
+                                                taskDelegate.originalY = taskDelegate.y
 
-                                            // ВОССТАНАВЛИВАЕМ drag.target если он был отключен
-                                            if (!drag.target) {
-                                                drag.target = taskDelegate
+                                                if (!drag.target) {
+                                                    drag.target = taskDelegate
+                                                }
                                             }
                                         }
 
-                                        onPositionChanged: {
+                                        onPositionChanged: (mouse) => {
                                             if (tasksListView.count <= 1) return
 
                                             if (isDragging) {
-                                                // ФИКС: Если элемент последний и его тянут ВНИЗ - постоянно возвращаем на место
                                                 if (startIndex === tasksListView.count - 1) {
                                                     var originalY = startIndex * (taskDelegate.height + tasksListView.spacing) - tasksListView.contentY
                                                     if (taskDelegate.y > originalY) {
-                                                        // Постоянно возвращаем на место, создавая эффект сопротивления
                                                         taskDelegate.y = originalY
                                                         return
                                                     }
@@ -448,97 +444,73 @@ ApplicationWindow {
                                             }
                                         }
 
-                                        onReleased: {
-                                            if (tasksListView.count <= 1) return
+                                        onReleased: (mouse) => {
+                                            if (mouse.button === Qt.LeftButton) {
+                                                if (tasksListView.count <= 1) return
 
-                                            //Backend.log("ЛЕВАЯ кнопка onReleased")
-                                            taskDelegate.z = 0
-                                            isDragging = false
-                                            isLastElementBlocked = false
+                                                taskDelegate.z = 0
+                                                isDragging = false
+                                                isLastElementBlocked = false
 
-                                            if (taskDelegate.visualIndex !== startIndex) {
-                                                //Backend.log("Позиция изменилась, обновляем модель")
+                                                if (taskDelegate.visualIndex !== startIndex) {
+                                                    var dayItem = dayContainer
+                                                    if (dayItem && dayItem.dayTasks) {
+                                                        var originalTasks = dayItem.dayTasks
+                                                        var newTasks = []
 
-                                                var dayItem = dayContainer
-                                                if (dayItem && dayItem.dayTasks) {
-                                                    var originalTasks = dayItem.dayTasks
-                                                    var newTasks = []
+                                                        for (var i = 0; i < originalTasks.length; i++) {
+                                                            if (i === startIndex) continue
 
-                                                    for (var i = 0; i < originalTasks.length; i++) {
-                                                        if (i === startIndex) continue
-
-                                                        if (i === taskDelegate.visualIndex) {
-                                                            if (taskDelegate.visualIndex < startIndex) {
-                                                                newTasks.push({
-                                                                    taskText: originalTasks[startIndex].taskText,
-                                                                    taskDescription: originalTasks[startIndex].taskDescription,
-                                                                    taskColor: originalTasks[startIndex].taskColor
-                                                                })
-                                                                newTasks.push({
-                                                                    taskText: originalTasks[i].taskText,
-                                                                    taskDescription: originalTasks[i].taskDescription,
-                                                                    taskColor: originalTasks[i].taskColor
-                                                                })
+                                                            if (i === taskDelegate.visualIndex) {
+                                                                if (taskDelegate.visualIndex < startIndex) {
+                                                                    newTasks.push({
+                                                                        taskText: originalTasks[startIndex].taskText,
+                                                                        taskDescription: originalTasks[startIndex].taskDescription,
+                                                                        taskColor: originalTasks[startIndex].taskColor
+                                                                    })
+                                                                    newTasks.push({
+                                                                        taskText: originalTasks[i].taskText,
+                                                                        taskDescription: originalTasks[i].taskDescription,
+                                                                        taskColor: originalTasks[i].taskColor
+                                                                    })
+                                                                } else {
+                                                                    newTasks.push({
+                                                                        taskText: originalTasks[i].taskText,
+                                                                        taskDescription: originalTasks[i].taskDescription,
+                                                                        taskColor: originalTasks[i].taskColor
+                                                                    })
+                                                                    newTasks.push({
+                                                                        taskText: originalTasks[startIndex].taskText,
+                                                                        taskDescription: originalTasks[startIndex].taskDescription,
+                                                                        taskColor: originalTasks[startIndex].taskColor
+                                                                    })
+                                                                }
                                                             } else {
                                                                 newTasks.push({
                                                                     taskText: originalTasks[i].taskText,
                                                                     taskDescription: originalTasks[i].taskDescription,
                                                                     taskColor: originalTasks[i].taskColor
                                                                 })
-                                                                newTasks.push({
-                                                                    taskText: originalTasks[startIndex].taskText,
-                                                                    taskDescription: originalTasks[startIndex].taskDescription,
-                                                                    taskColor: originalTasks[startIndex].taskColor
-                                                                })
                                                             }
-                                                        } else {
-                                                            newTasks.push({
-                                                                taskText: originalTasks[i].taskText,
-                                                                taskDescription: originalTasks[i].taskDescription,
-                                                                taskColor: originalTasks[i].taskColor
-                                                            })
                                                         }
+
+                                                        assignmentTimer.newTasks = newTasks
+                                                        assignmentTimer.dayItem = dayItem
+                                                        assignmentTimer.dayIndex = dayContainer.index
+                                                        assignmentTimer.start()
                                                     }
-
-                                                    assignmentTimer.newTasks = newTasks
-                                                    assignmentTimer.dayItem = dayItem
-                                                    assignmentTimer.dayIndex = dayContainer.index
-                                                    assignmentTimer.start()
                                                 }
+
+                                                resetDelegatesPosition.start()
                                             }
-
-                                            resetDelegatesPosition.start()
                                         }
-                                    }
 
-                                    // MouseArea для ПРАВОЙ кнопки (меню)
-                                    MouseArea {
-                                        anchors.fill: parent
-                                        acceptedButtons: Qt.RightButton
-                                        cursorShape: Qt.PointingHandCursor
-
-                                        onClicked: {
-                                            //Backend.log("ПРАВАЯ кнопка clicked")
-                                            tasksListView.taskRightClicked(modelData, index)
-                                        }
-                                    }
-
-                                    // Статический текст (отображается когда не редактируем)
-                                    Column {
-                                        id: staticTextColumn
-                                        anchors.fill: parent
-                                        anchors.margins: 2
-                                        visible: !taskDelegate.isEditing
-
-                                        Text {
-                                            width: parent.width
-                                            height: parent.height  // если нужно вертикальное выравнивание
-                                            text: modelData.taskText
-                                            font.pixelSize: 14
-                                            font.bold: true
-                                            elide: Text.ElideRight
-                                            horizontalAlignment: Text.AlignHCenter  // по горизонтали
-                                            verticalAlignment: Text.AlignVCenter    // по вертикали
+                                        onClicked: (mouse) => {
+                                            if (mouse.button === Qt.RightButton) {
+                                                tasksListView.taskRightClicked(modelData, index)
+                                            } else if (mouse.button === Qt.LeftButton && !isDragging) {
+                                                tasksListView.taskLeftClicked(modelData, index)
+                                            }
                                         }
                                     }
 
@@ -547,10 +519,8 @@ ApplicationWindow {
                                             taskDelegate.isEditing = false
                                             var newText = editTextInput.text.trim()
                                             if (newText !== "" && newText !== modelData.taskText) {
-                                                // Обновляем модель
                                                 modelData.taskText = newText
 
-                                                // Принудительно обновляем весь массив
                                                 var dayItem = dayContainer
                                                 if (dayItem) {
                                                     dayItem.dayTasks = dayItem.dayTasks.slice()
@@ -560,10 +530,8 @@ ApplicationWindow {
                                             }
                                         }
                                     }
-
                                 }
 
-                                // Подключение обработчиков сигналов
                                 Component.onCompleted: {
                                     taskRightClicked.connect(function(taskData, index) {
                                         taskDetailPopup.currentTaskData = taskData
@@ -573,14 +541,12 @@ ApplicationWindow {
                                     })
 
                                     taskEditFinished.connect(function(taskData, index, newText) {
-                                        Backend.log("Текст задачи изменен:", newText)
-                                        // Автосохранение при изменении задачи
+                                        console.log("Текст задачи изменен:", newText)
                                         saveDayData(dayContainer.index)
                                     })
                                 }
                             }
 
-                            // Кнопка добавления новой задачи
                             Button {
                                 id: addButton
                                 width: parent.width - 2
@@ -590,32 +556,25 @@ ApplicationWindow {
                                 anchors.horizontalCenter: parent.horizontalCenter
 
                                 onClicked: {
-                                    // Создаем новую задачу
                                     var newTask = {
                                         taskText: "",
                                         taskDescription: "",
                                         taskColor: "#ffffff"
                                     }
 
-                                    // Добавляем в модель
                                     dayTasks.push(newTask)
-                                    dayTasks = dayTasks.slice() // Создаем новый массив для принудительного обновления
+                                    dayTasks = dayTasks.slice()
 
-                                    // Сразу открываем модальное окно для редактирования
-                                    // Берем задачу из ОБНОВЛЕННОГО массива
                                     taskDetailPopup.currentTaskData = dayTasks[dayTasks.length - 1]
                                     taskDetailPopup.currentTaskIndex = dayTasks.length - 1
                                     taskDetailPopup.currentDayIndex = dayContainer.index
                                     taskDetailPopup.open()
-
-                                    //Backend.log("Добавлена новая задача в день:", dayName)
 
                                     saveDayData(dayContainer.index)
                                 }
                             }
                         }
 
-                        // Свойства для данных дня
                         property string dayName: ["Понедельник", "Вторник", "Среда", "Четверг", "Пятница", "Суббота", "Воскресенье"][index]
                         property string dayDate: ""
                         property string originalDate: ""
@@ -626,7 +585,6 @@ ApplicationWindow {
             }
         }
 
-        // Область с кнопками
         Rectangle {
             id: secondField
             anchors {
@@ -641,9 +599,8 @@ ApplicationWindow {
                 anchors.fill: parent
                 anchors.margins: 5
 
-                Item { Layout.fillHeight: true } // Верхний спейсер
+                Item { Layout.fillHeight: true }
 
-                // Навигация
                 Button {
                     Layout.preferredWidth: 30
                     Layout.preferredHeight: 30
@@ -661,7 +618,7 @@ ApplicationWindow {
                     }
                 }
 
-                Item { Layout.preferredHeight: 3 } // Отступ
+                Item { Layout.preferredHeight: 3 }
 
                 Button {
                     Layout.preferredWidth: 30
@@ -676,7 +633,7 @@ ApplicationWindow {
                     }
                 }
 
-                Item { Layout.preferredHeight: 3 } // Отступ
+                Item { Layout.preferredHeight: 3 }
 
                 Button {
                     Layout.preferredWidth: 30
@@ -695,9 +652,8 @@ ApplicationWindow {
                     }
                 }
 
-                Item { Layout.preferredHeight: 3 } // Отступ
+                Item { Layout.preferredHeight: 3 }
 
-                // Кнопка копирования
                 Button {
                     Layout.preferredWidth: 30
                     Layout.preferredHeight: 30
@@ -714,9 +670,8 @@ ApplicationWindow {
                     }
                 }
 
-                Item { Layout.preferredHeight: 3 } // Отступ
+                Item { Layout.preferredHeight: 3 }
 
-                // Выбор недели
                 ComboBox {
                     id: comboBox
                     Layout.preferredWidth: 30
@@ -742,26 +697,13 @@ ApplicationWindow {
                     }
                 }
 
-                Item { Layout.preferredHeight: 3 } // Отступ
+                Item { Layout.preferredHeight: 3 }
 
-                // Кнопка настроек
-                /*Button {
-                    Layout.preferredWidth: 30
-                    Layout.preferredHeight: 30
-                    Layout.alignment: Qt.AlignHCenter
-                    text: "⚙️"
-                    font.pixelSize: 16
-                    ToolTip.text: "Настройки"
-                    ToolTip.visible: hovered
-                    onClicked: console.log("Settings button clicked")
-                }*/
-
-                Item { Layout.fillHeight: true } // Нижний спейсер
+                Item { Layout.fillHeight: true }
             }
         }
     }
 
-    // Модальное окно для детального просмотра/редактирования
     Popup {
         property string selectedColor: "#ffffff"
 
@@ -780,7 +722,6 @@ ApplicationWindow {
 
         Keys.onReturnPressed: {
             if (event.modifiers & Qt.ControlModifier) {
-                // Ctrl+Enter работает из TextArea
                 return
             }
             saveButton.clicked()
@@ -788,7 +729,6 @@ ApplicationWindow {
 
         Keys.onEnterPressed: {
             if (event.modifiers & Qt.ControlModifier) {
-                // Ctrl+Enter работает из TextArea
                 return
             }
             saveButton.clicked()
@@ -825,7 +765,6 @@ ApplicationWindow {
                     color: "transparent"
                 }
 
-                // Обработка клавиши Enter
                 Keys.onReturnPressed: {
                     saveButton.clicked()
                 }
@@ -849,7 +788,6 @@ ApplicationWindow {
                     radius: 4
                 }
 
-                // Обработка клавиши Enter с Ctrl
                 Keys.onReturnPressed: {
                     if (event.modifiers & Qt.ControlModifier) {
                         saveButton.clicked()
@@ -862,7 +800,6 @@ ApplicationWindow {
                 }
             }
 
-            // Выбор цвета
             Column {
                 width: parent.width
                 spacing: 5
@@ -879,10 +816,10 @@ ApplicationWindow {
 
                     Repeater {
                         model: [
-                            { name: "Белый", color: "#ffffff" },    // Уроки
-                            { name: "Красный", color: "#ffcccc" },  // Перенесенный урок
-                            { name: "Серый", color: "#a8a8a8" },    // Отмена
-                            { name: "Зеленый", color: "#ccffcc" },  // Дела
+                            { name: "Белый", color: "#ffffff" },
+                            { name: "Красный", color: "#ffcccc" },
+                            { name: "Серый", color: "#a8a8a8" },
+                            { name: "Зеленый", color: "#ccffcc" },
                             { name: "Синий", color: "#cce5ff" },
                             { name: "Желтый", color: "#ffffcc" },
                             { name: "Оранжевый", color: "#ffe6cc" },
@@ -919,25 +856,19 @@ ApplicationWindow {
                 spacing: 10
 
                 Button {
-                    id: saveButton  // Добавляем id
+                    id: saveButton
                     text: "Сохранить"
                     onClicked: {
                         if (taskDetailPopup.currentTaskData) {
-                            // Получаем актуальную ссылку на день и задачу
                             var dayItem = daysRepeater.itemAt(taskDetailPopup.currentDayIndex)
                             if (dayItem && dayItem.dayTasks) {
-                                // Находим актуальную задачу в массиве
                                 var actualTask = dayItem.dayTasks[taskDetailPopup.currentTaskIndex]
                                 if (actualTask) {
-                                    // Обновляем актуальную задачу
                                     actualTask.taskText = popupTitleInput.text
                                     actualTask.taskDescription = popupDescInput.text
                                     actualTask.taskColor = taskDetailPopup.currentTaskData.taskColor || "#ffffff"
 
-                                    // Принудительно обновляем модель
                                     dayItem.dayTasks = dayItem.dayTasks.slice()
-
-                                    // Автосохранение при сохранении изменений
                                     saveDayData(taskDetailPopup.currentDayIndex)
                                 }
                             }
@@ -953,9 +884,7 @@ ApplicationWindow {
                             var dayItem = daysRepeater.itemAt(taskDetailPopup.currentDayIndex)
                             if (dayItem && dayItem.dayTasks) {
                                 dayItem.dayTasks.splice(taskDetailPopup.currentTaskIndex, 1)
-                                dayItem.dayTasks = dayItem.dayTasks.slice() // Принудительно обновляем модель
-
-                                // Автосохранение при удалении задачи
+                                dayItem.dayTasks = dayItem.dayTasks.slice()
                                 saveDayData(taskDetailPopup.currentDayIndex)
                             }
                             taskDetailPopup.close()
