@@ -7,6 +7,7 @@ from PySide6.QtGui import QIcon
 from core.backend import Backend
 import json
 import os
+from datetime import datetime
 
 def main():
     print("Файлы в директории:", os.listdir('.'))
@@ -27,7 +28,7 @@ def main():
             user_id = data["user_id"]
             isglobal = data["isGlobal"]
 
-        backend = Backend(engine, user_id, isglobal)
+        backend = Backend(engine, user_id, isglobal, str(datetime.now().year))
         engine.rootContext().setContextProperty("Backend", backend)
 
         qml_path = Path(__file__).parent / "ui" / "App.qml"

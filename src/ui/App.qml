@@ -45,7 +45,7 @@ ApplicationWindow {
 
     property var draggedTask: null
 
-    function show_copy_result(message) {
+    function show_notification(message) {
         notificationText.text = message
         if (message.includes("Ошибка")) {
             notification.color = "#ffcccc"
@@ -61,6 +61,12 @@ ApplicationWindow {
 
     function update_week_data(jsonContent) {
         updateDaysData(jsonContent)
+    }
+
+    function refresh_current_week() {
+        if (comboBox.currentText) {
+            Backend.read_file(comboBox.currentText)
+        }
     }
 
     function updateDaysData(jsonData) {
@@ -239,7 +245,7 @@ ApplicationWindow {
                             for (var i = 0; i < dayTasks.length; i++) {
                                 var task = dayTasks[i];
                                 if (task.taskText) {
-                                    if (task.taskColor === "#ffffff" || task.taskColor === "white" || task.taskColor === "#ffcccc") {
+                                    if (task.taskColor === "#ffffff" || task.taskColor === "white" || task.taskColor === "#ffccf2" || task.taskColor === "#ffcccc") {
                                         count++;
                                     }
                                 }
@@ -620,18 +626,34 @@ ApplicationWindow {
 
                 Item { Layout.preferredHeight: 3 }
 
-                Button {
-                    Layout.preferredWidth: 30
-                    Layout.preferredHeight: 30
-                    Layout.alignment: Qt.AlignHCenter
-                    text: "📍"
-                    font.pixelSize: 16
-                    ToolTip.text: "Перейти к текущей неделе"
-                    ToolTip.visible: hovered
-                    onClicked: {
-                        comboBox.currentIndex = Utils.getWeekNumber()
-                    }
-                }
+Button {
+    Layout.preferredWidth: 30
+    Layout.preferredHeight: 30
+    Layout.alignment: Qt.AlignHCenter
+    text: "📍"
+    font.pixelSize: 16
+    ToolTip.text: "Перейти к текущей неделе и году"
+    ToolTip.visible: hovered
+    onClicked: {
+        // Получаем текущую неделю
+        var currentWeek = Utils.getWeekNumber();
+
+        // Получаем текущий год
+        var currentYear = new Date().getFullYear().toString();
+
+        // Устанавливаем текущий год в yearBox
+        var yearIndex = yearBox.model.indexOf(currentYear);
+        if (yearIndex !== -1) {
+            yearBox.currentIndex = yearIndex;
+        } else {
+            // Если текущего года нет в списке, выбираем первый доступный
+            yearBox.currentIndex = 0;
+        }
+
+        // Устанавливаем текущую неделю в comboBox
+        comboBox.currentIndex = currentWeek;
+    }
+}
 
                 Item { Layout.preferredHeight: 3 }
 
@@ -672,6 +694,68 @@ ApplicationWindow {
 
                 Item { Layout.preferredHeight: 3 }
 
+                Button {
+                    Layout.preferredWidth: 30
+                    Layout.preferredHeight: 30
+                    Layout.alignment: Qt.AlignHCenter
+                    text: "↩️"
+                    font.pixelSize: 16
+                    ToolTip.text: "Отменить последнее действие"
+                    ToolTip.visible: hovered
+                    onClicked: {
+                        Backend.undo_last_action()
+                    }
+                }
+
+                Item { Layout.preferredHeight: 3 }
+
+                ComboBox {
+                    id: yearBox
+                    Layout.preferredWidth: 30
+                    Layout.preferredHeight: 30
+                    Layout.alignment: Qt.AlignHCenter
+                    model: ["2025", "2026", "2027", "2028", "2029", "2030"]
+                    // currentIndex будет установлен в Component.onCompleted
+                    property bool skipFirstChange: true
+
+                    ToolTip.text: "Выберите год для просмотра"
+                    ToolTip.visible: hovered
+
+                    Component.onCompleted: {
+                        // Получаем текущий год
+                        var currentYear = new Date().getFullYear().toString();
+
+                        // Находим индекс текущего года в списке
+                        var yearIndex = model.indexOf(currentYear);
+
+                        if (yearIndex !== -1) {
+                            // Устанавливаем текущий год
+                            currentIndex = yearIndex;
+                        } else {
+                            // Если текущего года нет в списке, устанавливаем первый элемент
+                            currentIndex = 0;
+                        }
+
+                        skipFirstChange = false;
+                    }
+
+                    onCurrentTextChanged: {
+                        if (skipFirstChange) return
+
+                        if(currentText) {
+                            var message = "Выбран " + currentText + " год"
+                            show_notification(message)
+                            Backend.change_year(currentText)
+
+                            if (comboBox.currentText) {
+                                Backend.read_file(comboBox.currentText)
+                            }
+                        }
+                    }
+                }
+
+                Item { Layout.preferredHeight: 3 }
+
                 ComboBox {
                     id: comboBox
                     Layout.preferredWidth: 30
@@ -694,6 +778,21 @@ ApplicationWindow {
                         if (currentText) {
                             Backend.read_file(currentText)
                         }
+                    }
+                }
+
+                Item { Layout.preferredHeight: 3 }
+
+                Button {
+                    Layout.preferredWidth: 30
+                    Layout.preferredHeight: 30
+                    Layout.alignment: Qt.AlignHCenter
+                    text: "📊"
+                    font.pixelSize: 16
+                    ToolTip.text: "Статистика"
+                    ToolTip.visible: hovered
+                    onClicked: {
+                        statisticsPopup.open()
                     }
                 }
 
@@ -907,6 +1006,150 @@ ApplicationWindow {
             currentTaskData = null
             currentTaskIndex = -1
             currentDayIndex = -1
+        }
+    }
+
+    Popup {
+        id: statisticsPopup
+        width: 600
+        height: 400
+        x: (parent.width - width) / 2
+        y: (parent.height - height) / 2
+        modal: true
+        focus: true
+        closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
+
+        background: Rectangle {
+            color: "white"
+            border.color: "#cccccc"
+            border.width: 2
+            radius: 8
+        }
+
+        property var monthsModel: [
+            { text: "Январь", value: 1 },
+            { text: "Февраль", value: 2 },
+            { text: "Март", value: 3 },
+            { text: "Апрель", value: 4 },
+            { text: "Май", value: 5 },
+            { text: "Июнь", value: 6 },
+            { text: "Июль", value: 7 },
+            { text: "Август", value: 8 },
+            { text: "Сентябрь", value: 9 },
+            { text: "Октябрь", value: 10 },
+            { text: "Ноябрь", value: 11 },
+            { text: "Декабрь", value: 12 }
+        ]
+
+        contentItem: Column {
+            anchors.fill: parent
+            anchors.margins: 20
+            spacing: 15
+
+            Text {
+                font.bold: true
+                font.pixelSize: 20
+                color: "#333333"
+                anchors.horizontalCenter: parent.horizontalCenter
+            }
+
+            Rectangle {
+                width: parent.width
+                height: 1
+                color: "#cccccc"
+            }
+
+            // Выпадающий список месяцев
+            Column {
+                width: parent.width
+                spacing: 5
+
+                Text {
+                    text: "Месяц:"
+                    font.pixelSize: 14
+                    color: "#333333"
+                }
+
+                ComboBox {
+                    id: monthComboBox
+                    width: parent.width
+                    model: statisticsPopup.monthsModel
+                    textRole: "text"
+                    currentIndex: new Date().getMonth() // Текущий месяц по умолчанию
+                }
+            }
+
+            // Поле ввода имени ученика
+            Column {
+                width: parent.width
+                spacing: 5
+
+                Text {
+                    text: "Имя ученика:"
+                    font.pixelSize: 14
+                    color: "#333333"
+                }
+
+                TextField {
+                    id: studentNameInput
+                    width: parent.width
+                    placeholderText: "Введите имя ученика"
+                    font.pixelSize: 14
+
+                    background: Rectangle {
+                        border.color: "#cccccc"
+                        border.width: 1
+                        radius: 4
+                    }
+                }
+            }
+
+            // Кнопка поиска
+            Button {
+                text: "Найти"
+                width: 100
+                anchors.right: parent.right
+                onClicked: {
+                    var monthData = monthComboBox.currentValue
+                    var monthNumber = monthData ? monthData.value : 0
+                    var studentName = studentNameInput.text.trim()
+
+                    if (studentName === "") {
+                        show_notification("Введите имя ученика")
+                        return
+                    }
+
+                    var result = Backend.get_statistics(monthNumber, studentName)
+
+                    if (result === "") {
+                        show_notification("Ошибка при получении статистики")
+                        resultsText.text = "Данные не найдены"
+
+                    } else resultsText.text = result
+
+                }
+            }
+
+            Rectangle {
+                id: resultsArea
+                width: parent.width
+                height: 100
+                radius: 8
+                border.color: "#dee2e6"
+                border.width: 2
+
+                Text {
+                    id: resultsText
+                    anchors.fill: parent
+                    anchors.margins: 10
+                    text: ""
+                    font.pixelSize: 14
+                    color: "#6c757d"
+                    wrapMode: Text.Wrap
+                    verticalAlignment: Text.AlignVCenter
+                    horizontalAlignment: Text.AlignLeft
+                }
+            }
         }
     }
 }

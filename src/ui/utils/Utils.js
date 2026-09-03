@@ -16,9 +16,19 @@ function getWeekNumber(date) {
 }
 
 // Функция для форматирования даты
-function formatDate(dateString) {
+/*function formatDate(dateString) {
     var parts = dateString.split("-");
     if (parts.length === 3) return parts[2] + "." + parts[1];
+    return dateString;
+}*/
+
+
+// Функция для форматирования даты
+function formatDate(dateString) {
+    var parts = dateString.split("-");
+    if (parts.length === 3) {
+        return parts[2] + "." + parts[1] + "." + parts[0];
+    }
     return dateString;
 }
 

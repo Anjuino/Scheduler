@@ -12,7 +12,7 @@ class FileUploadThread(QThread):
         self.file_path = file_path  # Полный путь к файлу
         self.file_name = os.path.basename(file_path)  # Берем только имя файла из пути
         self.year = year
-        self.server_url = "http://192.168.0.105:6000/upload_schedule"
+        self.server_url = "http://192.168.0.105:3000/upload_schedule"
 
         self.finished.connect(self.deleteLater)
         self.error.connect(self.deleteLater)
