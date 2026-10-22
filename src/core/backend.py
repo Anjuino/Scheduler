@@ -1,24 +1,26 @@
 from PySide6 import QtCore
 from PySide6.QtCore import QObject, Slot
-from .FileUpload import FileUploadThread
+from .FileUpload import FileUploadThread, FileDownloadThread
 from datetime import datetime
 import os
 import json
 
 
 class Backend(QObject):
-    def __init__(self, qml_engine, user_id, isglobal, currentYear):
+    def __init__(self, qml_engine, user_id, isglobal, currentYear, server_url="http://192.168.0.105:3000"):
         super().__init__()
         self.user_id = user_id
         self.upload_thread = None
         self.qml_engine = qml_engine
         self.isglobal = isglobal
         self.currentYear = str(currentYear)
+        self.server_url = server_url
         # Стек отмены последних действий: список записей
         # {"description": str, "files": [(abs_path, content_or_None), ...]}
         self._undo_stack = []
         self._max_undo = 30
         self._upload_threads = []
+        self._download_threads = []
 
     def call_qml_function(self, function_name, *args):
         if not self.qml_engine.rootObjects():
@@ -58,7 +60,7 @@ class Backend(QObject):
     def _upload_file(self, path):
         if not self.isglobal:
             return
-        thread = FileUploadThread(self.user_id, path, self.currentYear)
+        thread = FileUploadThread(self.user_id, path, self.currentYear, self.server_url)
         thread.finished.connect(lambda msg: print(f"Upload: {msg}"))
         thread.error.connect(lambda msg: print(f"Upload error: {msg}"))
         self._upload_threads.append(thread)
@@ -82,6 +84,12 @@ class Backend(QObject):
                     if os.path.exists(path):
                         os.remove(path)
                 else:
+                    try:
+                        restored_data = json.loads(content)
+                        restored_data["updated_at"] = datetime.utcnow().isoformat() + "Z"
+                        content = json.dumps(restored_data, ensure_ascii=False, indent=2)
+                    except json.JSONDecodeError:
+                        pass
                     with open(path, 'w', encoding='utf-8') as f:
                         f.write(content)
                 self._upload_file(path)
@@ -127,13 +135,15 @@ class Backend(QObject):
             for i in range(7):
                 target_data["days"][i]["tasks"] = source_data["days"][i]["tasks"].copy()
 
+            target_data["updated_at"] = datetime.utcnow().isoformat() + "Z"
+
             # Сохраняем следующую неделю с новыми задачами
             with open(target_file, 'w', encoding='utf-8') as f:
                 json.dump(target_data, f, ensure_ascii=False, indent=2)
 
             if self.isglobal:
                 # ОТПРАВКА НА СЕРВЕР В ОТДЕЛЬНОМ ПОТОКЕ
-                self.upload_thread = FileUploadThread(self.user_id, target_file, self.currentYear)
+                self.upload_thread = FileUploadThread(self.user_id, target_file, self.currentYear, self.server_url)
                 self.upload_thread.finished.connect(lambda msg: print(f"Upload: {msg}"))
                 self.upload_thread.error.connect(lambda msg: print(f"Upload error: {msg}"))
                 self.upload_thread.start()
@@ -191,6 +201,36 @@ class Backend(QObject):
             print(f"Ошибка чтения файла {file}: {e}")
             self.call_qml_function("print_data", f"Ошибка: {e}")
 
+    @Slot(str)
+    def sync_and_read_file(self, file):
+        """Перед показом недели спрашивает сервер, нет ли там более свежей версии файла."""
+        if not self.isglobal or not self.server_url:
+            self.read_file(file)
+            return
+
+        try:
+            local_path = os.path.join(self._year_dir(), file)
+        except Exception:
+            self.read_file(file)
+            return
+
+        thread = FileDownloadThread(self.user_id, file, self.currentYear, self.server_url, local_path)
+        thread.finished.connect(lambda status, payload: self._on_sync_finished(file, status, payload))
+        self._download_threads.append(thread)
+        thread.finished.connect(lambda *_: self._download_threads.remove(thread) if thread in self._download_threads else None)
+        thread.start()
+
+    def _on_sync_finished(self, file, status, payload):
+        try:
+            if status == "updated":
+                local_path = os.path.join(self._year_dir(), file)
+                with open(local_path, 'w', encoding='utf-8') as f:
+                    f.write(payload)
+        except Exception as e:
+            print(f"Ошибка применения обновления: {e}")
+
+        self.read_file(file)
+
     @Slot(str, int, str)
     def save_day_data(self, week_number, day_index, day_json):
         try:
@@ -212,6 +252,7 @@ class Backend(QObject):
             # Обновляем только нужный день
             new_day_data = json.loads(day_json)
             week_data["days"][day_index] = new_day_data
+            week_data["updated_at"] = datetime.utcnow().isoformat() + "Z"
 
             # Сохраняем обратно
             with open(filename, 'w', encoding='utf-8') as f:
@@ -221,7 +262,7 @@ class Backend(QObject):
 
             if self.isglobal:
                 # ОТПРАВКА НА СЕРВЕР В ОТДЕЛЬНОМ ПОТОКЕ
-                self.upload_thread = FileUploadThread(self.user_id, filename, self.currentYear)
+                self.upload_thread = FileUploadThread(self.user_id, filename, self.currentYear, self.server_url)
                 self.upload_thread.finished.connect(lambda msg: print(f"Upload: {msg}"))
                 self.upload_thread.error.connect(lambda msg: print(f"Upload error: {msg}"))
                 self.upload_thread.start()

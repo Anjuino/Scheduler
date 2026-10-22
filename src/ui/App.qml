@@ -43,6 +43,23 @@ ApplicationWindow {
         }
     }
 
+    // Периодически спрашивает сервер, нет ли более свежей версии текущей недели
+    // (например, кто-то поправил задачу с веба) - без этого пришлось бы
+    // перезапускать приложение, чтобы увидеть изменения.
+    Timer {
+        id: autoSyncTimer
+        interval: 30000
+        running: true
+        repeat: true
+        onTriggered: {
+            // Не дергаем во время открытого popup редактирования - иначе можно
+            // затереть индексы задач прямо под рукой у пользователя.
+            if (comboBox.currentText && !taskDetailPopup.visible) {
+                Backend.sync_and_read_file(comboBox.currentText)
+            }
+        }
+    }
+
     property var draggedTask: null
 
     function show_notification(message) {
@@ -748,7 +765,7 @@ Button {
                             Backend.change_year(currentText)
 
                             if (comboBox.currentText) {
-                                Backend.read_file(comboBox.currentText)
+                                Backend.sync_and_read_file(comboBox.currentText)
                             }
                         }
                     }
@@ -776,7 +793,7 @@ Button {
 
                     onCurrentTextChanged: {
                         if (currentText) {
-                            Backend.read_file(currentText)
+                            Backend.sync_and_read_file(currentText)
                         }
                     }
                 }
