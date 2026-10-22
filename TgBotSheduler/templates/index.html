@@ -1,0 +1,687 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Расписание</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: linear-gradient(180deg, #2b2b2b 0%, #000000 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        
+        h1 {
+            text-align: center;
+            color: white;
+            margin-bottom: 30px;
+            font-size: 2em;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.2);
+        }
+        
+        .buttons {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-bottom: 30px;
+        }
+        
+        button {
+            background: white;
+            border: none;
+            padding: 15px 25px;
+            font-size: 18px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            color: #333;
+        }
+        
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 12px rgba(0,0,0,0.15);
+        }
+        
+        button:active {
+            transform: translateY(0);
+        }
+        
+        .btn-today { background: #157d19; color: white; }
+        .btn-tomorrow { background: #157d19; color: white; }
+        .btn-current-week { background: #157d19; color: white; }
+        .btn-next-week { background: #157d19; color: white; }
+        
+        .schedule {
+            background: white;
+            padding: 25px;
+            margin-bottom: 20px;
+        }
+        
+        .schedule-item {
+            background: #f5f5f5;
+            border-radius: 12px;
+            padding: 15px;
+            margin-bottom: 15px;
+            white-space: pre-wrap;
+            font-family: monospace;
+            font-size: 14px;
+            line-height: 1.5;
+        }
+        
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #666;
+        }
+        
+        .error {
+            background: #ffebee;
+            color: #c62828;
+            padding: 15px;
+            border-radius: 12px;
+            text-align: center;
+        }
+        
+        hr {
+            margin: 15px 0;
+            border: none;
+            border-top: 2px solid #e0e0e0;
+        }
+
+        .login-wrap {
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .login-card {
+            background: white;
+            border-radius: 20px;
+            padding: 30px;
+            width: 100%;
+            max-width: 340px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+        }
+
+        .login-card h1 {
+            color: #000;
+            text-shadow: none;
+            font-size: 1.4em;
+            margin-bottom: 20px;
+        }
+
+        .login-card label {
+            display: block;
+            font-size: 13px;
+            color: #555;
+            margin-bottom: 4px;
+        }
+
+        .login-card input {
+            width: 100%;
+            padding: 10px;
+            margin-bottom: 16px;
+            border: 2px solid #cccccc;
+            border-radius: 8px;
+            font-size: 15px;
+        }
+    </style>
+</head>
+<body>
+    <div id="loginSection" class="login-wrap">
+        <div class="login-card">
+            <h1>📅 Вход в расписание</h1>
+            <div id="loginError" class="error" style="display: none; margin-bottom: 16px;"></div>
+            <form id="loginForm">
+                <label for="loginUserId">ID</label>
+                <input type="text" id="loginUserId" inputmode="numeric" autocomplete="username" required autofocus>
+
+                <label for="loginPassword">Пароль</label>
+                <input type="password" id="loginPassword" autocomplete="current-password" required>
+
+                <button type="submit" id="loginSubmitBtn" class="btn-today" style="width: 100%;">Войти</button>
+            </form>
+        </div>
+    </div>
+
+    <div id="appSection" class="container" style="display: none;">
+        <div id="schedule" class="schedule">
+            <div class="loading"></div>
+        </div>
+
+        <div class="buttons">
+            <button class="btn-today" onclick="getSchedule(0)">📝 Сегодня</button>
+            <button class="btn-tomorrow" onclick="getSchedule(1)">📝 Завтра</button>
+            <button class="btn-current-week" onclick="getWeek(0)">📝 Текущая неделя</button>
+            <button class="btn-next-week" onclick="getWeek(1)">📝 Следующая неделя</button>
+        </div>
+
+        <div class="buttons">
+            <button onclick="handleLogout()" style="grid-column: 1 / -1; background: transparent; color: #999; box-shadow: none; font-size: 13px;">Выйти</button>
+        </div>
+    </div>
+
+    <script>
+        // Пароль не спрашиваем каждый раз: после успешного входа ID и пароль
+        // сохраняются в localStorage браузера и сами подставляются в каждый
+        // запрос (заголовки X-User-Id/X-Password). Если сервер их не примет
+        // (например, пароль сменили) - localStorage чистится и снова показываем форму входа.
+        const AUTH_STORAGE_KEY = 'scheduler_auth';
+
+        function getStoredAuth() {
+            try {
+                const raw = localStorage.getItem(AUTH_STORAGE_KEY);
+                return raw ? JSON.parse(raw) : null;
+            } catch (e) {
+                return null;
+            }
+        }
+
+        function setStoredAuth(userId, password) {
+            try {
+                localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify({ user_id: userId, password: password }));
+            } catch (e) {}
+        }
+
+        function clearStoredAuth() {
+            try { localStorage.removeItem(AUTH_STORAGE_KEY); } catch (e) {}
+        }
+
+        function authHeaders() {
+            const auth = getStoredAuth();
+            return auth ? { 'X-User-Id': String(auth.user_id), 'X-Password': auth.password } : {};
+        }
+
+        function showLogin() {
+            document.getElementById('loginSection').style.display = 'flex';
+            document.getElementById('appSection').style.display = 'none';
+        }
+
+        function showApp() {
+            document.getElementById('loginSection').style.display = 'none';
+            document.getElementById('appSection').style.display = 'block';
+        }
+
+        // Обертка над fetch: подставляет заголовки авторизации и, если сервер
+        // отвечает 401 (пароль неверный/сменился), сама возвращает на экран входа.
+        async function apiFetch(url, options = {}) {
+            const headers = Object.assign({}, options.headers || {}, authHeaders());
+            const response = await fetch(url, Object.assign({}, options, { headers }));
+            if (response.status === 401) {
+                clearStoredAuth();
+                showLogin();
+                throw new Error('auth_required');
+            }
+            return response;
+        }
+
+        function handleLogout() {
+            clearStoredAuth();
+            showLogin();
+        }
+
+        document.getElementById('loginForm').addEventListener('submit', async (ev) => {
+            ev.preventDefault();
+            const userIdInput = document.getElementById('loginUserId');
+            const passwordInput = document.getElementById('loginPassword');
+            const errorEl = document.getElementById('loginError');
+            const submitBtn = document.getElementById('loginSubmitBtn');
+
+            const userId = userIdInput.value.trim();
+            const password = passwordInput.value;
+
+            errorEl.style.display = 'none';
+            submitBtn.disabled = true;
+            submitBtn.textContent = 'Вход...';
+
+            try {
+                const response = await fetch('/scheduler/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ user_id: userId, password: password })
+                });
+                const result = await response.json();
+
+                if (result.success) {
+                    setStoredAuth(userId, password);
+                    passwordInput.value = '';
+                    showApp();
+                    getSchedule(0);
+                } else {
+                    errorEl.textContent = result.error || 'Неверный ID или пароль';
+                    errorEl.style.display = 'block';
+                }
+            } catch (error) {
+                errorEl.textContent = 'Ошибка сети: ' + error.message;
+                errorEl.style.display = 'block';
+            } finally {
+                submitBtn.disabled = false;
+                submitBtn.textContent = 'Войти';
+            }
+        });
+
+        // При открытии страницы: если вход уже сохранен - сразу открываем расписание.
+        if (getStoredAuth()) {
+            showApp();
+            getSchedule(0);
+        } else {
+            showLogin();
+        }
+
+        // Та же палитра и тот же смысл цветов, что в десктоп-приложении:
+        // серый - урок отменен, белый/красный/розовый - урок состоялся (считается
+        // в статистике), остальные цвета - просто пометки без особой логики.
+        const TASK_COLORS = [
+            { name: 'Белый (урок)', color: '#ffffff' },
+            { name: 'Красный (урок)', color: '#ffcccc' },
+            { name: 'Серый (отмена)', color: '#a8a8a8' },
+            { name: 'Зеленый', color: '#ccffcc' },
+            { name: 'Синий', color: '#cce5ff' },
+            { name: 'Желтый', color: '#ffffcc' },
+            { name: 'Оранжевый', color: '#ffe6cc' },
+            { name: 'Фиолетовый', color: '#e6ccff' },
+            { name: 'Розовый (урок)', color: '#ffccf2' }
+        ];
+
+        function renderColorPickerHtml() {
+            let html = '<div class="color-picker" style="display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 4px;">';
+            TASK_COLORS.forEach(c => {
+                html += `<span class="color-swatch" data-color="${c.color}" title="${c.name}" style="width: 24px; height: 24px; border-radius: 50%; background: ${c.color}; border: 2px solid #999; cursor: pointer; display: inline-block;"></span>`;
+            });
+            html += '</div>';
+            html += '<div style="font-size: 11px; color: #666; margin-bottom: 8px;">Серый — отмена, белый/красный/розовый — урок считается состоявшимся</div>';
+            return html;
+        }
+
+        // Подсвечивает выбранный цвет в .color-picker и вешает обработчики выбора.
+        function wireColorPicker(picker, initialColor) {
+            picker.dataset.selected = initialColor || '#ffffff';
+
+            const highlight = () => {
+                picker.querySelectorAll('.color-swatch').forEach(sw => {
+                    const isSelected = sw.dataset.color === picker.dataset.selected;
+                    sw.style.border = isSelected ? '3px solid #157d19' : '2px solid #999';
+                });
+            };
+
+            picker.querySelectorAll('.color-swatch').forEach(sw => {
+                sw.addEventListener('click', () => {
+                    picker.dataset.selected = sw.dataset.color;
+                    highlight();
+                });
+            });
+
+            highlight();
+        }
+
+        // Что сейчас показано на экране - нужно, чтобы после add/delete/reorder
+        // перерисовать ровно тот же вид (день или неделю) со свежими индексами.
+        let currentView = { type: 'day', value: 0 };
+
+        function refreshCurrentView() {
+            if (currentView.type === 'week') {
+                getWeek(currentView.value);
+            } else {
+                getSchedule(currentView.value);
+            }
+        }
+
+        // Рисует разметку задач одного дня. Сам текст задач сюда не подставляем
+        // (чтобы не словить XSS), заполняем его потом через hydrateTaskRows.
+        function renderTasksHtml(tasks) {
+            let html = '<div class="tasks-list">';
+            tasks.forEach(() => {
+                html += `
+                    <div class="task-row" draggable="true">
+                        <div class="task-view" style="padding: 8px 0; border-bottom: 2px solid #000000; font-weight: 600; display: flex; justify-content: space-between; align-items: center; gap: 6px; cursor: grab;">
+                            <span class="task-label" style="flex: 1;"></span>
+                            <button type="button" class="edit-btn" style="flex-shrink: 0; padding: 4px 8px; font-size: 12px;">✏️</button>
+                            <button type="button" class="delete-btn" style="flex-shrink: 0; padding: 4px 8px; font-size: 12px;">🗑</button>
+                        </div>
+                        <div class="task-edit" style="display: none; padding: 10px 0;">
+                            <input type="text" class="task-input" style="width: 100%; box-sizing: border-box; padding: 8px; margin-bottom: 6px; font-size: 14px;">
+                            <textarea class="task-desc-input" rows="2" placeholder="Описание" style="width: 100%; box-sizing: border-box; padding: 8px; margin-bottom: 6px; font-size: 13px;"></textarea>
+                            ${renderColorPickerHtml()}
+                            <div style="display: flex; gap: 8px;">
+                                <button type="button" class="save-btn" style="padding: 6px 14px;">Сохранить</button>
+                                <button type="button" class="cancel-btn" style="padding: 6px 14px;">Отмена</button>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            });
+            html += '</div>';
+            html += `
+                <div class="add-task-row" style="margin-top: 10px;">
+                    <button type="button" class="show-add-btn" style="width: 100%; padding: 8px; font-size: 13px; background: #e0e0e0;">+ Добавить задачу</button>
+                    <div class="add-task-form" style="display: none; margin-top: 8px;">
+                        <input type="text" class="new-task-input" placeholder="Текст задачи" style="width: 100%; box-sizing: border-box; padding: 8px; margin-bottom: 6px; font-size: 14px;">
+                        <textarea class="new-task-desc-input" rows="2" placeholder="Описание" style="width: 100%; box-sizing: border-box; padding: 8px; margin-bottom: 6px; font-size: 13px;"></textarea>
+                        ${renderColorPickerHtml()}
+                        <div style="display: flex; gap: 8px;">
+                            <button type="button" class="add-confirm-btn" style="padding: 6px 14px;">Добавить</button>
+                            <button type="button" class="add-cancel-btn" style="padding: 6px 14px;">Отмена</button>
+                        </div>
+                    </div>
+                </div>
+            `;
+            return html;
+        }
+
+        // Заполняет отрисованные .task-row реальными данными и вешает обработчики
+        // редактирования, удаления, добавления и drag-n-drop перестановки.
+        function hydrateTaskRows(container, date, tasks) {
+            const rows = container.querySelectorAll('.task-row');
+            rows.forEach((row, i) => {
+                const task = tasks[i];
+
+                const label = row.querySelector('.task-label');
+                const view = row.querySelector('.task-view');
+                const edit = row.querySelector('.task-edit');
+                const input = row.querySelector('.task-input');
+                const descInput = row.querySelector('.task-desc-input');
+                const colorPicker = row.querySelector('.color-picker');
+
+                label.textContent = `${task.icon} ${task.name}`;
+                input.value = task.name;
+                descInput.value = task.description || '';
+                row.dataset.index = task.index;
+                view.style.background = task.color || '#ffffff';
+                wireColorPicker(colorPicker, task.color);
+
+                row.querySelector('.edit-btn').addEventListener('click', () => {
+                    view.style.display = 'none';
+                    edit.style.display = 'block';
+                    input.focus();
+                });
+
+                row.querySelector('.cancel-btn').addEventListener('click', () => {
+                    input.value = task.name;
+                    descInput.value = task.description || '';
+                    wireColorPicker(colorPicker, task.color);
+                    edit.style.display = 'none';
+                    view.style.display = 'flex';
+                });
+
+                row.querySelector('.save-btn').addEventListener('click', async (ev) => {
+                    const saveBtn = ev.currentTarget;
+                    const newText = input.value.trim();
+                    if (newText === '') {
+                        alert('Текст задачи не может быть пустым');
+                        return;
+                    }
+                    const newDesc = descInput.value;
+                    const newColor = colorPicker.dataset.selected;
+
+                    saveBtn.disabled = true;
+                    saveBtn.textContent = 'Сохранение...';
+                    try {
+                        const response = await apiFetch('/scheduler/update_task', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                date: date,
+                                task_index: task.index,
+                                task: newText,
+                                description: newDesc,
+                                color: newColor
+                            })
+                        });
+                        const result = await response.json();
+
+                        if (result.success) {
+                            // Полная перерисовка, а не точечная правка DOM - цвет
+                            // задачи влияет на счетчик "Уроков: N" в шапке дня,
+                            // его тоже надо пересчитать на актуальных данных.
+                            refreshCurrentView();
+                        } else {
+                            alert('Ошибка сохранения: ' + (result.error || 'неизвестная ошибка'));
+                        }
+                    } catch (error) {
+                        if (error.message !== 'auth_required') alert('Ошибка сети: ' + error.message);
+                    } finally {
+                        saveBtn.disabled = false;
+                        saveBtn.textContent = 'Сохранить';
+                    }
+                });
+
+                row.querySelector('.delete-btn').addEventListener('click', async () => {
+                    if (!confirm(`Удалить задачу "${task.name}"?`)) return;
+                    try {
+                        const response = await apiFetch('/scheduler/delete_task', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ date: date, task_index: task.index })
+                        });
+                        const result = await response.json();
+                        if (result.success) {
+                            refreshCurrentView();
+                        } else {
+                            alert('Ошибка удаления: ' + (result.error || 'неизвестная ошибка'));
+                        }
+                    } catch (error) {
+                        if (error.message !== 'auth_required') alert('Ошибка сети: ' + error.message);
+                    }
+                });
+
+                // Drag-n-drop перестановка задач местами внутри одного дня
+                row.addEventListener('dragstart', (ev) => {
+                    ev.dataTransfer.setData('text/plain', JSON.stringify({ date: date, index: task.index }));
+                    ev.dataTransfer.effectAllowed = 'move';
+                    row.classList.add('dragging');
+                });
+                row.addEventListener('dragend', () => {
+                    row.classList.remove('dragging');
+                });
+            });
+
+            const tasksList = container.querySelector('.tasks-list');
+            if (tasksList) {
+                tasksList.addEventListener('dragover', (ev) => {
+                    ev.preventDefault();
+                    ev.dataTransfer.dropEffect = 'move';
+                });
+
+                tasksList.addEventListener('drop', async (ev) => {
+                    ev.preventDefault();
+                    let dragged;
+                    try {
+                        dragged = JSON.parse(ev.dataTransfer.getData('text/plain'));
+                    } catch (e) {
+                        return;
+                    }
+                    if (!dragged || dragged.date !== date) return;
+
+                    const targetRow = ev.target.closest('.task-row');
+                    const toIndex = targetRow ? parseInt(targetRow.dataset.index, 10) : tasks.length - 1;
+
+                    if (toIndex === dragged.index) return;
+
+                    try {
+                        const response = await apiFetch('/scheduler/reorder_tasks', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                date: date,
+                                from_index: dragged.index,
+                                to_index: toIndex
+                            })
+                        });
+                        const result = await response.json();
+                        if (result.success) {
+                            refreshCurrentView();
+                        } else {
+                            alert('Ошибка перестановки: ' + (result.error || 'неизвестная ошибка'));
+                        }
+                    } catch (error) {
+                        if (error.message !== 'auth_required') alert('Ошибка сети: ' + error.message);
+                    }
+                });
+            }
+
+            // Форма добавления новой задачи в конец дня
+            const showAddBtn = container.querySelector('.show-add-btn');
+            const addForm = container.querySelector('.add-task-form');
+            if (showAddBtn && addForm) {
+                const newInput = addForm.querySelector('.new-task-input');
+                const newDescInput = addForm.querySelector('.new-task-desc-input');
+                const newColorPicker = addForm.querySelector('.color-picker');
+                wireColorPicker(newColorPicker, '#ffffff');
+
+                showAddBtn.addEventListener('click', () => {
+                    showAddBtn.style.display = 'none';
+                    addForm.style.display = 'block';
+                    newInput.focus();
+                });
+
+                addForm.querySelector('.add-cancel-btn').addEventListener('click', () => {
+                    newInput.value = '';
+                    newDescInput.value = '';
+                    wireColorPicker(newColorPicker, '#ffffff');
+                    addForm.style.display = 'none';
+                    showAddBtn.style.display = 'block';
+                });
+
+                addForm.querySelector('.add-confirm-btn').addEventListener('click', async (ev) => {
+                    const confirmBtn = ev.currentTarget;
+                    const text = newInput.value.trim();
+                    if (text === '') {
+                        alert('Текст задачи не может быть пустым');
+                        return;
+                    }
+                    const desc = newDescInput.value;
+                    const color = newColorPicker.dataset.selected;
+
+                    confirmBtn.disabled = true;
+                    confirmBtn.textContent = 'Добавление...';
+                    try {
+                        const response = await apiFetch('/scheduler/add_task', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ date: date, task: text, description: desc, color: color })
+                        });
+                        const result = await response.json();
+                        if (result.success) {
+                            refreshCurrentView();
+                        } else {
+                            alert('Ошибка добавления: ' + (result.error || 'неизвестная ошибка'));
+                        }
+                    } catch (error) {
+                        if (error.message !== 'auth_required') alert('Ошибка сети: ' + error.message);
+                    } finally {
+                        confirmBtn.disabled = false;
+                        confirmBtn.textContent = 'Добавить';
+                    }
+                });
+            }
+        }
+
+        async function getSchedule(daysOffset) {
+        currentView = { type: 'day', value: daysOffset };
+        const scheduleDiv = document.getElementById('schedule');
+        scheduleDiv.innerHTML = '<div class="loading">⏳ Загрузка...</div>';
+
+        try {
+            const response = await apiFetch(`/scheduler/get_schedule?days_offset=${daysOffset}`);
+            const data = await response.json();
+
+            if (data.success) {
+                const d = data.data;
+                const tasksHtml = renderTasksHtml(d.tasks);
+
+                scheduleDiv.innerHTML = `
+                    <div style="background: #d1d1d1; border-radius: 20px; padding: 20px;">
+                        <h2 style="margin: 0 0 10px 0; color: #000000;">${d.formatted_date}</h2>
+                        <div style="background: #157d19; color: white; padding: 8px 12px; border-radius: 8px; display: inline-block; margin-bottom: 15px;">
+                            📚 Уроков: ${d.lessons_count}
+                        </div>
+                        <div style="margin-top: 15px;">
+                            ${tasksHtml}
+                        </div>
+                    </div>
+                `;
+
+                hydrateTaskRows(scheduleDiv, d.date, d.tasks);
+            } else {
+                scheduleDiv.innerHTML = `<div class="error">❌ ${data.error}</div>`;
+            }
+        } catch (error) {
+            if (error.message !== 'auth_required') {
+                scheduleDiv.innerHTML = `<div class="error">❌ Ошибка: ${error.message}</div>`;
+            }
+        }
+    }
+
+    async function getWeek(weekType) {
+        currentView = { type: 'week', value: weekType };
+        const scheduleDiv = document.getElementById('schedule');
+        scheduleDiv.innerHTML = '<div class="loading">⏳ Загрузка...</div>';
+
+        try {
+            const today = new Date();
+            const currentDay = today.getDay();
+            let mondayOffset;
+
+            if (currentDay === 0) {
+                mondayOffset = -6;
+            } else {
+                mondayOffset = -(currentDay - 1);
+            }
+
+            if (weekType === 1) {
+                mondayOffset += 7;
+            }
+
+            let html = '';
+            const weekDays = [];
+            for (let i = 0; i < 7; i++) {
+                const daysOffset = mondayOffset + i;
+                const response = await apiFetch(`/scheduler/get_schedule?days_offset=${daysOffset}`);
+                const data = await response.json();
+
+                if (data.success) {
+                    const d = data.data;
+                    const tasksHtml = renderTasksHtml(d.tasks);
+                    weekDays.push(d);
+
+                    html += `
+                        <div class="day-card" style="background: #d1d1d1; padding: 15px; margin-bottom: 15px;">
+                            <h3 style="margin: 0 0 8px 0;">${d.formatted_date}</h3>
+                            <div style="background: #157d19; color: white; padding: 4px 8px; border-radius: 6px; display: inline-block; font-size: 12px; margin-bottom: 10px;">
+                                Уроков: ${d.lessons_count}
+                            </div>
+                            <div style="margin-top: 10px;">${tasksHtml}</div>
+                        </div>
+                    `;
+                } else {
+                    html += `<div class="error">❌ ${data.error || 'Нет данных'}</div>`;
+                }
+            }
+
+            scheduleDiv.innerHTML = html;
+
+            const dayCards = scheduleDiv.querySelectorAll('.day-card');
+            dayCards.forEach((card, i) => hydrateTaskRows(card, weekDays[i].date, weekDays[i].tasks));
+        } catch (error) {
+            if (error.message !== 'auth_required') {
+                scheduleDiv.innerHTML = `<div class="error">❌ Ошибка: ${error.message}</div>`;
+            }
+        }
+    }
+    </script>
+</body>
+</html>
